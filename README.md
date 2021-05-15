@@ -1,2 +1,2 @@
-# Forex_forecast_models
+# Forex Forecast Models
 Comparative Analysis of Foreign Exchange Forecast Models
