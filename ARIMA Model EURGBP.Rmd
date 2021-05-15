@@ -1,0 +1,182 @@
+---
+title: "ARIMA Model EUR and GBP"
+author: "Jane"
+date: "01/05/2021"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+# Forcasting Exchange Rate Using ARIMA Model for EUR And GBP
+## Reading EUR and GBP Currency into r
+
+
+```{r}
+library(readr)
+library(dplyr)
+EURGBPARIMA<-  read.csv ("EURGBP_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateEURGBP = ("CLOSE"))
+
+  
+head(EURGBPARIMA)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+EURGBPARIMA$Date <- lubridate::ymd(EURGBPARIMA$Date)
+head(EURGBPARIMA)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(EURGBPARIMA))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+EURGBPARIMATS<- ts(as.vector(EURGBPARIMA$Rate),  frequency = 322, start= c(2000,01,03))
+plot.ts(EURGBPARIMATS)
+title("Time Series plot of EURGBPTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+
+## Finding the component of the Time Series
+
+```{r}
+ComponentEURGBP <- decompose(EURGBPARIMATS)
+plot(ComponentEURGBP)
+```
+
+## To To achieve stationarity by differencing the data – compute the differences between consecutive observations
+
+```{r}
+library("fUnitRoots")
+urkpssTest(EURGBPARIMATS, type = c("tau"), lags = c("short"),use.lag = NULL, doplot = TRUE)
+EURGBPStationary= diff(EURGBPARIMATS, differences=1)
+plot(EURGBPStationary)
+```
+
+
+## Calculating Autocorrlation function and partil autocorlation function
+
+
+```{r}
+acf(EURGBPARIMATS,lag.max=34)
+pacf(EURGBPARIMATS, lag.max = 34)
+```
+
+
+## Adjusting and ensuring there are no seasonality
+```{r}
+TSseasonallyadjustedEURGBP <- EURGBPARIMATS- ComponentEURGBP$seasonal 
+StationaryEURGBP <- diff(TSseasonallyadjustedEURGBP, differences=1)
+plot(StationaryEURGBP)
+```
+
+
+## Calculating again for ACF and PACF after finding stationality
+
+```{r}
+acf(StationaryEURGBP, lag.max=34)
+pacf(StationaryEURGBP, lag.max=34)
+```
+
+
+# Fitting The ARIMA Model
+## ARIMA fitting (1,1,0)
+
+```{r}
+fitArima1EURGBP <- arima(EURGBPARIMATS, order =  c(1,0,0), include.mean = TRUE)
+fitArima1EURGBP
+```
+
+
+##Arima Fitting (0,1,0)
+
+```{r}
+fitArima2EURGBP <- arima(EURGBPARIMATS, order =  c(0,1,0), include.mean = TRUE)
+fitArima2EURGBP
+```
+
+## Arima Fitting (2,1,1)
+
+```{r}
+fitArima3EURGBP <- arima(EURGBPARIMATS, order = c(2,1,1), include.mean = TRUE)
+fitArima3EURGBP
+```
+
+
+##Fitting Arima (4,0,4)
+
+```{r}
+fitArima4EURGBP <- arima(EURGBPARIMATS, order = c(4,0,4), include.mean = TRUE)
+fitArima4EURGBP
+```
+
+
+##Best possible model is selected by AIC scores of the models
+
+
+
+```{r}
+library(dLagM)
+ARIMAModelSelectionEURGBP = AIC(fitArima1EURGBP,fitArima2EURGBP,fitArima3EURGBP,fitArima4EURGBP)
+sortScore(ARIMAModelSelectionEURGBP, score ="aic")
+```
+
+### Base on the above the fitArima1CanJap is selected
+
+##
+
+```{r}
+confint(fitArima4EURGBP)
+```
+
+## Runing code to obtain Box Test Rest
+
+```{r}
+acf(fitArima4EURGBP$residuals)
+library(FitAR)
+library(bestglm)
+ Box.test(resid(fitArima4EURGBP),type="Ljung",lag=20,fitdf=1)
+
+qqnorm(fitArima4EURGBP$residuals)
+qqline(fitArima4EURGBP$residuals)
+```
+
+
+## Using Auto.arima to find the best model fit
+
+```{r}
+library(forecast)
+auto.arima(EURGBPARIMATS, trace=TRUE)
+```
+
+
+
+
+## forecasting using  Best model: ARIMA(4,0,4)    
+
+```{r}
+forecastarimaEURGBP<- predict(fitArima4EURGBP,n.ahead = 100)
+forecastarimaEURGBP
+par(mfrow = c(1,1))
+```
+
+
+

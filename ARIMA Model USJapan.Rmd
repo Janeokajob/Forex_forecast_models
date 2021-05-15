@@ -1,0 +1,186 @@
+---
+title: "ARIMA USJap CurrencyRate"
+author: "Jane"
+date: "27/04/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+# Forcasting Exchange Rate Using GARCH Model for US Dollar and Japenese Yen
+
+## Reading Canadian and Japanes Currency into r
+```{r}
+library(readr)
+library(dplyr)
+USJapCurrencyARIMA <-  read.csv ("USDJPY_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateUSJapan = ("CLOSE"))
+
+  
+head(USJapCurrencyARIMA)
+```
+   
+
+
+
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+USJapCurrencyARIMA$Date <- lubridate::ymd(USJapCurrencyARIMA$Date)
+head(USJapCurrencyARIMA)
+
+```
+
+
+
+##Checking for obvious errors
+```{r}
+#Checking for obvious errors
+which(is.na(USJapCurrencyARIMA))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+USJapARIMATS<- ts(as.vector(USJapCurrencyARIMA$Rate),  frequency = 320, start= c(2000,01,03))
+plot.ts(USJapARIMATS)
+title("Time Series plot of USJapTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+## Finding the component of the Time Series
+
+```{r}
+ComponentUSJapCurrency <- decompose(USJapARIMATS)
+plot(ComponentUSJapCurrency)
+```
+
+## To To achieve stationarity by differencing the data – compute the differences between consecutive observations
+
+```{r}
+library("fUnitRoots")
+urkpssTest(USJapARIMATS, type = c("tau"), lags = c("short"),use.lag = NULL, doplot = TRUE)
+USJapStationary= diff(USJapARIMATS, differences=1)
+plot(USJapStationary)
+```
+
+
+## Calculating Autocorrlation function and partil autocorlation function
+
+
+```{r}
+acf(USJapARIMATS,lag.max=34)
+pacf(USJapARIMATS, lag.max = 34)
+```
+
+
+## Adjusting and ensuring there are no seasonality
+```{r}
+TSseasonallyadjustedUSJap <- USJapARIMATS- ComponentUSJapCurrency$seasonal 
+StationaryUSJap <- diff(TSseasonallyadjustedUSJap, differences=1)
+plot(StationaryUSJap)
+```
+
+
+## Calculating again for ACF and PACF after finding stationality
+
+```{r}
+acf(StationaryUSJap, lag.max=34)
+pacf(StationaryUSJap, lag.max=34)
+```
+
+
+# Fitting The ARIMA Model
+## ARIMA fitting (1,1,0)
+
+```{r}
+fitArima1USJap <- arima(USJapARIMATS, order =  c(0,1,0), include.mean = TRUE)
+fitArima1USJap
+```
+
+
+##Arima Fitting (1,1,1)
+
+```{r}
+fitArima2USJap <- arima(USJapARIMATS, order =  c(1,1,1), include.mean = TRUE)
+fitArima2USJap
+```
+
+## Arima Fitting (3,0,1)
+
+```{r}
+fitArima3USJap <- arima(USJapARIMATS, order = c(2,0,1), include.mean = TRUE)
+fitArima3USJap
+```
+
+
+##Fitting Arima (0,1,3)
+
+```{r}
+FitArima4USJap <- arima(USJapARIMATS, order = c(0,1,3), include.mean = TRUE)
+FitArima4USJap
+```
+
+
+##Best possible model is selected by AIC scores of the models
+
+
+
+```{r}
+library(dLagM)
+ARIMAModelSelectionUSJAP = AIC(fitArima1USJap,fitArima2USJap,fitArima3USJap,FitArima4USJap)
+sortScore(ARIMAModelSelectionUSJAP, score ="aic")
+```
+
+### Base on the above the fitArima1CanJap is selected
+
+##
+
+```{r}
+confint(fitArima3USJap)
+```
+
+## Runing code to obtain Box Test Rest
+
+```{r}
+acf(fitArima3USJap$residuals)
+library(FitAR)
+library(bestglm)
+ Box.test(resid(fitArima3USJap),type="Ljung",lag=20,fitdf=1)
+
+qqnorm(fitArima3USJap$residuals)
+qqline(fitArima3USJap$residuals)
+```
+
+
+## Using Auto.arima to find the best model fit
+
+```{r}
+library(forecast)
+auto.arima(USJapARIMATS, trace=TRUE)
+```
+
+
+
+
+## forecasting using  Best model: ARIMA(2,0,3)    
+
+```{r}
+forecastarimaUSJa<- predict(fitArima3USJap,n.ahead = 100)
+forecastarimaUSJa
+par(mfrow = c(1,1))
+```
+

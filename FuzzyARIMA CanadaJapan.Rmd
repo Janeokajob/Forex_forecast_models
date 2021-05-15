@@ -1,0 +1,82 @@
+---
+title: "Fuzzuy ARIMA"
+author: "Jane"
+date: "21/04/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#  Forecasting Using Fuzzy ARIMA Model
+
+## Reading Canadian and Japanes Currency into r
+```{r}
+library(readr)
+library(dplyr)
+CanadianJapanCurrencyFuzzy<- readxl::read_xlsx ("CADJPY_Candlestick_1_D_BID_01.01.2000-31.12.2020.xlsx")%>%
+  select('Gmt time', Close)%>%
+  rename(Date = ('Gmt time'), Rate = ("Close"))
+
+head(CanadianJapanCurrencyFuzzy)
+```
+
+
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+CanadianJapanCurrencyFuzzy$Date <- lubridate::ymd(CanadianJapanCurrencyFuzzy$Date)
+head(CanadianJapanCurrencyFuzzy)
+
+```
+
+##Checking for obvious errors 
+
+```{r}
+#Checking for obvious errors
+which(is.na(CanadianJapanCurrencyFuzzy))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+CanjapTSFuzzy<- ts(as.vector(CanadianJapanCurrencyFuzzy$Rate),  frequency = 314, start= c(2000,01,03))
+plot.ts(CanjapTSFuzzy)
+title("Time Series plot of CanJapTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+
+## Forecaste of Canadian Dollar and Japanese Yen using Fuzzy Arima
+
+
+```{r}
+par(mfrow=c(2,2))
+
+fuzzy.ts1(CanjapTSFuzzy,n=100,type="Singh",plot=TRUE)
+```
+
+#Abbasov Mamedova model
+fuzzy.ts2(enrollment,n=5,w=5,C=0.01,forecast=5,plot=TRUE,type="Abbasov-Mamedova")
+
+#NFTS model
+fuzzy.ts2(enrollment,n=5,w=5,C=0.01,forecast=5,plot=TRUE,type="NFTS")
+```
+```
+
+
+par(mfrow=c(1,2))
+
+
+
+
+
+
+

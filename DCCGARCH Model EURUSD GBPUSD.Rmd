@@ -1,0 +1,219 @@
+---
+title: "DCCGARCH Model EURUSD GBPUSD"
+author: "Jane"
+date: "02/05/2021"
+output: html_document
+---
+
+
+
+
+# Forcasting Exchange Rate Using DCC GARCH Model for EUR And USD pair and GBP USD
+## Reading EUR and USD Currency into r
+
+
+```{r}
+library(readr)
+library(dplyr)
+EURUSDDCCGARCH<-  read.csv ("EURUSD_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date1 = ('GMT.TIME'), RateEURUSD = ("CLOSE"))%>%
+  slice(1:6399)
+  
+  
+tail(EURUSDDCCGARCH)
+```
+
+
+
+## Reading GBP and USD Currency into r
+```{r}
+library(readr)
+library(dplyr)
+GBPUSDdccGARCH <-  read.csv ("GBPUSD_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateGBPUSD = ("CLOSE"))
+  
+tail(GBPUSDdccGARCH)
+```
+
+## Combining both Data Set
+
+```{r}
+DCCEURUSDnGBPUSD <- cbind(GBPUSDdccGARCH, EURUSDDCCGARCH)
+
+head (DCCEURUSDnGBPUSD)
+```
+
+## Selecting Date and the two pair of currency
+
+```{r}
+DCCEURnGBPUSD <- select(DCCEURUSDnGBPUSD, Date, RateGBPUSD, RateEURUSD)
+head(DCCEURnGBPUSD)
+```
+
+
+
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+DCCEURnGBPUSD$Date <- lubridate::ymd(DCCEURnGBPUSD$Date)
+head(DCCEURnGBPUSD)
+
+```
+
+
+##Checking for obvious errors 
+
+```{r}
+#Checking for obvious errors
+which(is.na(DCCEURnGBPUSD))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+RateGBPUSDTS<- ts(DCCEURnGBPUSD$RateGBPUSD,    frequency = 314, start= c(2000,01,03))
+RateEURUSDTS <- ts(DCCEURnGBPUSD$RateEURUSD, frequency = 314, start = c(2000,01,03))
+GBPUSDEURUSDTSDCC <- cbind(RateEURUSDTS, RateGBPUSDTS)
+plot.ts(GBPUSDEURUSDTSDCC)
+title("Time Series plot of GBPUSDnEURUSDTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+
+
+
+## 
+```{r}
+
+
+
+GBPUSDEURUSDLogTranDCC<-log(GBPUSDEURUSDTSDCC)
+
+ar(GBPUSDEURUSDLogTranDCC)
+```
+
+
+
+
+## Differencing the time series
+
+```{r}
+DiffGBPUSDEURUSD<-diff(GBPUSDEURUSDLogTranDCC) 
+ar(DiffGBPUSDEURUSD)
+plot(DiffGBPUSDEURUSD)
+```
+
+
+
+
+## Defining the the model
+
+
+```{r}
+library(rmgarch)  
+
+
+ugarch_spec1 <- ugarchspec(mean.model = list(armaOrder = c(0,0), include.mean = FALSE), 
+                          variance.model = list(model = "sGARCH", garchOrder = c(1,1)))
+
+ugarch_spec2 <- ugarchspec(mean.model = list(armaOrder = c(1,0), include.mean = FALSE), 
+                          variance.model = list(model = "sGARCH", garchOrder = c(1,1)))
+ugarch_spec3 <- ugarchspec(mean.model = list(armaOrder = c(2,0), include.mean = FALSE), 
+                          variance.model = list(model = "sGARCH", garchOrder = c(1,1)))
+
+ugarch_spec <- c(ugarch_spec1,ugarch_spec2,ugarch_spec3)
+
+
+# specify DCC model
+dcc_spec <- dccspec(uspec = multispec(replicate(ugarch_spec1, n = 2)),
+                    VAR = TRUE, lag = 3,
+                    model = "DCC", dccOrder = c(1,1))
+
+```
+
+
+```{r}
+library(rmgarch)  
+
+# specify i.i.d. model for the univariate time series
+ugarch_spec <- ugarchspec(mean.model = list(armaOrder = c(0,0), include.mean = FALSE), 
+                          variance.model = list(model = "sGARCH", garchOrder = c(1,1)))
+
+# specify DCC model
+dcc_spec <- dccspec(uspec = multispec(replicate(ugarch_spec, n = 2)),
+                    VAR = TRUE, lag = 3,
+                    model = "DCC", dccOrder = c(1,1))
+```
+
+
+
+
+## Next, we fit the model:
+
+fit1 = dccfit(spec1, data = Dat, fit.control = list(eval.se = TRUE), fit = multf, cluster = cl)
+fit1a = dccfit(spec1a, data = Dat, fit.control = list(eval.se = TRUE), fit = multf, cluster = cl)
+fit2 = dccfit(spec2, data = Dat, fit.control = list(eval.se = TRUE), fit = multf, cluster = cl)
+fit2a = dccfit(spec2a, data = Dat, fit.control = list(eval.se = TRUE), fit = multf, cluster = cl)
+
+
+```{r}
+
+# estimate model
+garchdcc_fitEURUSDGBPUSD <- dccfit(dcc_spec, data = DiffGBPUSDEURUSD, solver = "nlminb")
+garchdcc_fitEURUSDGBPUSD
+```
+
+
+```{r}
+plot(garchdcc_fitEURCADGBPCAD)
+```
+
+
+
+
+## Forecasting 
+
+
+```{r}
+ForecastDCCEURUSDGBPUSD = dccforecast(garchdcc_fitEURUSDGBPUSD, n.ahead = 100, n.roll = 0)
+ForecastDCCEURUSDGBPUSD
+```
+
+
+```{r}
+H1 = rcov(forc2)
+	
+cat("\nDCC Forecast Summary:\n")
+(forc2)
+
+cat("\nRolling and mixed Rolling Forecast DCC model Conditional Covariance check:\n")
+cat("\nFirst:\n")
+print( H1[[1]][,,1] )
+cat("\n100:\n")
+```
+
+
+
+
+```{r}
+# extract time-varying covariance and correlation matrix
+dcc_cor <- rcor(garchdcc_fit)
+dim(dcc_cor)
+#> [1]    3    3 1007
+
+#plot
+corr_t <- xts(cbind(dcc_cor[1, 2, ], dcc_cor[1, 3, ], dcc_cor[2, 3, ]), order.by = index(logreturns))
+colnames(corr_t) <- c("SPY vs LTL", "SPY vs IEF", "TLT vs IEF")
+plot(corr_t, col = c("black", "red", "blue"),
+     main = "Time-varying correlations", legend.loc = "left")
+```
+
+

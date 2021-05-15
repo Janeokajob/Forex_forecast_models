@@ -1,0 +1,189 @@
+---
+title: "ARIMA Model GBP And USD"
+author: "Jane"
+date: "28/04/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+ Forcasting Exchange Rate Using ARIMA Model for Bristish Pound And US Dollar
+
+## Reading GBP and USD Currency into r
+```{r}
+library(readr)
+library(dplyr)
+GBPUSDARIMA <-  read.csv ("GBPUSD_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateGBPUSD = ("CLOSE"))
+
+  
+tail(GBPUSDARIMA)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+GBPUSDARIMA$Date <- lubridate::ymd(GBPUSDARIMA$Date)
+head(GBPUSDARIMA)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(GBPUSDARIMA))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+GBPUSDARIMATS<- ts(as.vector(GBPUSDARIMA$Rate),  frequency = 320
+                   , start= c(2000,01,03))
+plot.ts(GBPUSDARIMATS)
+title("Time Series plot of GBPUSDTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+
+
+
+## Finding the component of the Time Series
+
+```{r}
+ComponentGBPUSD <- decompose(GBPUSDARIMATS)
+plot(ComponentGBPUSD)
+```
+
+## To To achieve stationarity by differencing the data – compute the differences between consecutive observations
+
+```{r}
+library("fUnitRoots")
+urkpssTest(GBPUSDARIMATS, type = c("tau"), lags = c("short"),use.lag = NULL, doplot = TRUE)
+GBPUSDStationary= diff(GBPUSDARIMATS, differences=1)
+plot(GBPUSDStationary)
+```
+
+
+## Calculating Autocorrlation function and partil autocorlation function
+
+
+```{r}
+acf(GBPUSDARIMATS,lag.max=34)
+pacf(GBPUSDARIMATS, lag.max = 34)
+```
+
+
+## Adjusting and ensuring there are no seasonality
+```{r}
+TSseasonallyadjustedGBPUSD <- GBPUSDARIMATS- ComponentGBPUSD$seasonal 
+StationaryGBPUSD <- diff(TSseasonallyadjustedGBPUSD, differences=1)
+plot(StationaryGBPUSD)
+```
+
+
+## Calculating again for ACF and PACF after finding stationality
+
+```{r}
+acf(StationaryGBPUSD, lag.max=34)
+pacf(StationaryGBPUSD, lag.max=34)
+```
+
+
+# Fitting The ARIMA Model
+## ARIMA fitting (1,1,0)
+
+```{r}
+fitArima1GBPUSD <- arima(GBPUSDARIMATS, order =  c(1,0,0), include.mean = TRUE)
+fitArima1GBPUSD
+```
+
+
+
+
+
+##Arima Fitting (2,2,2)
+
+```{r}
+fitArima2GBPUSD <- arima(GBPUSDARIMATS, order =  c(2,2,2), include.mean = TRUE)
+fitArima2GBPUSD
+
+```
+
+## Arima Fitting (2,1,1)
+
+```{r}
+fitArima3GBPUSD <- arima(GBPUSDARIMATS, order = c(2,1,1), include.mean = TRUE)
+fitArima3GBPUSD
+```
+
+
+##Fitting Arima (0,1,3)
+
+```{r}
+fitArima4GBPUSD <- arima(GBPUSDARIMATS, order = c(3,1,0), include.mean = TRUE)
+fitArima4GBPUSD
+```
+
+
+##Best possible model is selected by AIC scores of the models
+
+
+
+```{r}
+library(dLagM)
+ARIMAModelSelectionGBPUSD = AIC(fitArima1GBPUSD,fitArima2GBPUSD,fitArima3GBPUSD,fitArima4GBPUSD)
+sortScore(ARIMAModelSelectionGBPUSD, score ="aic")
+```
+
+### Base on the above the fitArima2CanJap is selected
+
+##
+
+```{r}
+confint(fitArima2GBPUSD)
+```
+
+## Runing code to obtain Box Test Rest
+
+```{r}
+acf(fitArima2GBPUSD$residuals)
+library(FitAR)
+library(bestglm)
+ Box.test(resid(fitArima2GBPUSD),type="Ljung",lag=20,fitdf=1)
+
+qqnorm(fitArima2GBPUSD$residuals)
+qqline(fitArima2GBPUSD$residuals)
+```
+
+
+## Using Auto.arima to find the best model fit
+
+```{r}
+library(forecast)
+auto.arima(GBPUSDARIMATS, trace=TRUE)
+```
+
+
+
+
+
+## forecasting using  Best model: ARIMA(0,1,0)    
+
+```{r}
+forecastarimaGBPUSD<- predict(fitArima2GBPUSD,n.ahead = 100)
+forecastarimaGBPUSD
+par(mfrow = c(1,1))
+```
+
+
+

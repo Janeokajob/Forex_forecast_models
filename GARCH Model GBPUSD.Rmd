@@ -1,0 +1,303 @@
+---
+title: "GARCH Model GBP And USD"
+author: "Jane"
+date: "28/04/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+
+# Forcasting Exchange Rate Using GARCH Model for GBP And USDollar
+
+## Reading GBP and USD Currency into r
+```{r}
+library(readr)
+library(dplyr)
+GBPUSDGARCH <-  read.csv ("GBPUSD_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateUSDGBP = ("CLOSE"))
+
+  
+tail(GBPUSDGARCH)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+GBPUSDGARCH$Date <- lubridate::ymd(GBPUSDGARCH$Date)
+head(GBPUSDGARCH)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(GBPUSDGARCH))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+GBPUSDGARCHTS<- ts(as.vector(GBPUSDGARCH$Rate),  frequency = 320, start= c(2000,01,03))
+plot.ts(GBPUSDGARCHTS)
+title("Time Series plot of GBPUSDTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+
+
+
+
+
+
+##Dealing with Conditional Heteroscedaticity:
+
+
+```{r}
+ 
+DifflogGBPUSDGarch= diff(log(GBPUSDGARCHTS))*100
+plot(DifflogGBPUSDGarch)
+title("Plot of returns of GBPUSD", sub = "(2013-2018)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+##nature as almost at all lags the p-values fall below the significance levels.
+
+
+
+```{r}
+library(TSA)
+McLeod.Li.test(y= DifflogGBPUSDGarch,main="McLeod-Li test statistics for Daily return series")
+```
+
+
+
+## In order to get an order of GARCH , we further transform the return series into absolute values and squared return values.
+
+
+```{r}
+
+abs = abs(DifflogGBPUSDGarch)
+sqr = DifflogGBPUSDGarch^2
+```
+
+
+
+
+# GARCH Model specification:
+
+```{r}
+par(mfrow=c(1,2))
+acf(abs, ci.type="ma",main=" ACF for abs. returns")
+pacf(abs, main=" PACF plot for abs.returns")
+```
+
+
+##From ACF and PACF we see many lags are significant. Hence, we plot EACF to get the candidate models
+
+```{r}
+eacf(abs) 
+```
+
+##From the squared returns ACF and PACF plot, it is not that clear to derive the order of p and q. Hence, I approach EACF and the order of ARMA are ARMA (2,3), ARMA (3,3), ARMA (2,4). Thus, GARCH candidate models would be GARCH (3,2) GARCH (3,3) GARCH (4,2)
+
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(sqr, ci.type="ma",main="ACF  for sqr. return")
+pacf(sqr, main="PACF for sqr. return")
+```
+
+##
+
+```{r}
+eacf(sqr) 
+```
+
+
+
+### With reference to the Dickey-Fuller Test, p-value is less than the 0.02 and we can reject the null hypothesis stating the non-stationarity. Hence , we can proceed further for model selection .
+
+
+#MODEL ESTIMATION:
+##GARCH (2,1): for GBP and CAD Curruency Pair
+
+
+```{r}
+
+
+# GARCH(2,1)
+library(tseries)
+GBPUSDGARCHFit.21 = garch(DifflogGBPUSDGarch,order=c(2,1),trace =FALSE)
+summary(GBPUSDGARCHFit.21)
+```
+
+
+
+## GARCH (2,2):
+##This model can be interpreted as an overfit model of GARCH(2,1) and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+```{r}
+
+GBPUSDGARCHFit.22 = garch(DifflogGBPUSDGarch, order =c(2,2),trace =FALSE)
+summary(GBPUSDGARCHFit.22)
+```
+
+
+##GARCH (3,1):
+##This model can be interpreted as an overfit model of GARCH(2,1) and GARCH (2,2). This model may not be consider to be a good fit.
+
+
+
+```{r}
+
+GBPUSDGARCHFit.31 = garch(DifflogGBPUSDGarch,order=c(3,1),trace =FALSE)
+summary(GBPUSDGARCHFit.31)
+```
+
+
+##GARCH (3,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+# GARCH(3,2) 
+
+```{r}
+GBPUSDGARCHFit.32 = garch(DifflogGBPUSDGarch,order=c(3,2),trace =FALSE)
+summary(GBPUSDGARCHFit.32)
+```
+
+
+## GARCH (3,3):
+This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not consider to be a good fit.
+
+# GARCH(3,3)
+
+```{r}
+
+GBPUSDGARCHFit.33 = garch(DifflogGBPUSDGarch,order=c(3,3),trace =FALSE)
+summary(GBPUSDGARCHFit.33)
+```
+
+
+##GARCH (4,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not considered to be a good fit.
+
+
+
+```{r}
+
+GBPUSDGARCHFit.11 = garch(DifflogGBPUSDGarch,order=c(1,1),trace =FALSE)
+summary(GBPUSDGARCHFit.11)
+```
+
+
+
+# Model Selection:
+##Best possible model is selected by AIC scores of the models. From the below sort function, GARCH(3,1) would be the best model for the return series. From the p-value, 3.1 also has the lowest correlation
+
+
+```{r}
+library(dLagM)
+GARCHModelSelectionGBPUSD = AIC(GBPUSDGARCHFit.21,GBPUSDGARCHFit.22 ,GBPUSDGARCHFit.31,GBPUSDGARCHFit.32,GBPUSDGARCHFit.33, GBPUSDGARCHFit.11)
+sortScore(GARCHModelSelectionGBPUSD, score ="aic")
+```
+
+
+# Model Fitting:
+
+```{r}
+library(rugarch)
+GBPUSDmodel1.1<-ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1,1)), 
+                  mean.model = list(armaOrder = c(2, 2), include.mean = TRUE), 
+                  distribution.model = "norm")
+                  
+GBPUSDgarchMODEL1.1<-ugarchfit(spec=GBPUSDmodel1.1,data=DifflogGBPUSDGarch, out.sample = 100)
+plot(GBPUSDgarchMODEL1.1,which="all")
+```
+
+##Model Diagnostics
+
+```{r}
+GBPUSDgarchMODEL1.1
+```
+
+
+## Forecasting
+
+```{r}
+forcgarchGBPUSD= ugarchforecast(GBPUSDgarchMODEL1.1, data = DiffGBPUSDLogTran, n.ahead = 100, n.roll =10)
+print(forcgarchGBPUSD)
+```
+
+
+## plotting
+
+```{r}
+plot(forcgarchGBPUSD, which= "all")
+```
+
+## Forecasting the rate
+
+
+```{r}
+p.t_1 =1.36630	
+  R_t <- c( -0.0186898, -0.0057243, 0.0343171, -0.0269843, 0.0074931,  0.0265472, -0.0306860, 0.0196746, 0.0154778, 
+-0.0293684, 0.0290539, 0.0028231, -0.0233549, 0.0343227, -0.0095134, -0.0136515, 0.0348117, -0.0197243, -0.0017814, 0.0305719, -0.0263615, 0.0104523, 0.0223493, -0.0285403, 0.0212399, 0.0114567, -0.0260549, 0.0290308, -0.0004338,
+-0.0193913, 0.0327557, -0.0115466, -0.0096379, 0.0319710, -0.0202660, 0.0016900, 0.0269086, -0.0253705, 0.0128848, 0.0184237, -0.0262019, 0.0223021, 0.0078534, -0.0227480, 0.0286017, -0.0031929, -0.0156275, 0.0309369, -0.0130771, -0.0059831, 0.0290661, -0.0203743, 0.0047009, 0.0233730, -0.0240773, 
+0.0148250, 0.0147941, -0.0237337, 0.0229138, 0.0046664, -0.0194983, 0.0278292, -0.0054796, -0.0120948, 0.0289294, -0.0141502, -0.0026946, 0.0261509, -0.0201071, 0.0072675, 0.0200026, -0.0225437, 0.0163106, 0.0114763, -0.0211920, 0.0231275, 0.0018881, -0.0163486, 0.0267724, -0.0073233, -0.0088164, 0.0267904, -0.0148121, 
+0.0002268, 0.0232724, -0.0195203, 0.0094110, 0.0168273, -0.0208266, 0.0173808, 0.0084792, -0.0186266, 
+0.0229947, -0.0004943, -0.0133343, 0.0254869, -0.0087562, -0.0058084, 0.0245713
+-0.0151090, -0.0151090
+
+
+
+
+
+
+
+
+
+)
+  p_t= 0
+  for (i in 1:100){
+    p_t =  p.t_1  *((2.71828)^(R_t[i]/100))
+   print(p_t)
+    p.t_1=p_t
+  }
+  
+```
+
+
+
+```{r}
+RateGBPJPYGarch = 141.168
+  RGBPJPYGARCH <-c(
+)
+  GBPJPYgarch= 0
+  for (i in 1:100){
+    USCanadagarch =  RateGBPJPYGarch *((2.71828)^(RGBPJPYGARCH[i]/100))
+    print(GBPJPYgarch)
+    RateUSGBPJPY=GBPJPYgarch
+  }
+  
+```
+
+
+
+
+
+
+

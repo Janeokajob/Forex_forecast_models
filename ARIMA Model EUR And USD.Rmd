@@ -1,0 +1,180 @@
+---
+title: "ARIMA EUR And USD"
+author: "Jane"
+date: "28/04/2021"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+
+# Forcasting Exchange Rate Using ARIMA Model for EUR And USD
+## Reading EUR and USD Currency into r
+
+
+```{r}
+library(readr)
+library(dplyr)
+EURUSDARIMA<-  read.csv ("EURUSD_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateEURUSD = ("CLOSE"))
+
+  
+head(EURUSDARIMA)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+EURUSDARIMA$Date <- lubridate::ymd(EURUSDARIMA$Date)
+tail(EURUSDARIMA)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(EURUSDARIMA))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+EURUSDARIMATS<- ts(as.vector(EURUSDARIMA$Rate),  frequency = 314, start= c(2000,01,03))
+plot.ts(EURUSDARIMATS)
+title("Time Series plot of EURUSDTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+## Finding the component of the Time Series
+
+```{r}
+ComponentEURUSDARIMA <- decompose(EURUSDARIMATS)
+plot(ComponentEURUSDARIMA)
+```
+
+## To To achieve stationarity by differencing the data – compute the differences between consecutive observations
+
+```{r}
+library("fUnitRoots")
+urkpssTest(EURUSDARIMATS, type = c("tau"), lags = c("short"),use.lag = NULL, doplot = TRUE)
+EURUSDStationary= diff(EURUSDARIMATS, differences=1)
+plot(EURUSDStationary)
+```
+
+
+## Calculating Autocorrlation function and partil autocorlation function
+
+
+```{r}
+acf(EURUSDARIMATS,lag.max=34)
+pacf(EURUSDARIMATS, lag.max = 34)
+```
+
+
+## Adjusting and ensuring there are no seasonality
+```{r}
+TSseasonallyadjustedCanJap <- EURUSDARIMATS- ComponentEURUSDARIMA$seasonal 
+StationaryEURUSD<- diff(TSseasonallyadjustedCanJap, differences=1)
+plot(StationaryEURUSD)
+```
+
+
+## Calculating again for ACF and PACF after finding stationality
+
+```{r}
+acf(StationaryEURUSD, lag.max=34)
+pacf(StationaryEURUSD, lag.max=34)
+```
+
+
+# Fitting The ARIMA Model
+## ARIMA fitting (1,1,0)
+
+```{r}
+fitArima1EURUSD <- arima(EURUSDARIMATS, order =  c(1,1,0), include.mean = TRUE)
+fitArima1EURUSD
+```
+
+
+##Arima Fitting (1,1,1)
+
+```{r}
+fitArima2EURUSD <- arima(EURUSDARIMATS, order =  c(1,1,1), include.mean = TRUE)
+fitArima2EURUSD
+```
+
+## Arima Fitting (1,0,0)
+
+```{r}
+fitArima3EURUSD <- arima(EURUSDARIMATS, order = c(1,0,0), include.mean = TRUE)
+fitArima3EURUSD
+```
+
+
+##Fitting Arima (0,1,3)
+
+```{r}
+fitArima4EURUSD <- arima(EURUSDARIMATS, order = c(2,2,2), include.mean = TRUE)
+fitArima4EURUSD
+```
+
+
+##Best possible model is selected by AIC scores of the models
+
+
+
+```{r}
+library(dLagM)
+ARIMAModelSelectionEURUSD = AIC(fitArima1EURUSD,fitArima2EURUSD,fitArima3EURUSD,fitArima4EURUSD)
+sortScore(ARIMAModelSelectionEURUSD, score ="aic")
+```
+
+### Base on the above the fitArima1CanJap is selected
+
+##
+
+```{r}
+confint(fitArima3EURUSD)
+```
+
+## Runing code to obtain Box Test Rest
+
+```{r}
+acf(fitArima3EURUSD$residuals)
+library(FitAR)
+library(bestglm)
+ Box.test(resid(fitArima3EURUSD),type="Ljung",lag=20,fitdf=1)
+
+qqnorm(fitArima3EURUSD$residuals)
+qqline(fitArima3EURUSD$residuals)
+```
+
+
+## Using Auto.arima to find the best model fit
+
+```{r}
+library(forecast)
+auto.arima(EURUSDARIMATS, trace=TRUE)
+```
+
+
+
+
+## forecasting using  Best model: ARIMA(1,1,0)    
+
+```{r}
+forecastarimaEURUSD<- predict(fitArima3EURUSD,n.ahead = 100)
+forecastarimaEURUSD
+par(mfrow = c(1,1))
+```
+

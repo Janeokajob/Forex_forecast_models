@@ -1,0 +1,283 @@
+---
+title: "GARCG Model GBPJPY"
+author: "Jane"
+date: "27/04/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+
+
+
+# Forcasting Exchange Rate Using GARCH Model for Bristish Pound And Japanese Yen
+
+## Reading GBP and JPY Currency into r
+```{r}
+library(readr)
+library(dplyr)
+GBPJPYGARCH <-  read.csv ("GBPJPY_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateGBPJPY = ("CLOSE"))
+
+  
+tail(GBPJPYGARCH)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+GBPJPYGARCH$Date <- lubridate::ymd(GBPJPYGARCH$Date)
+head(GBPJPYGARCH)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(GBPJPYGARCH))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+GBPJPYGARCHTS<- ts(as.vector(GBPJPYGARCH$Rate),  frequency = 314, start= c(2000,01,03))
+plot.ts(GBPJPYGARCHTS)
+title("Time Series plot of GBPJPYTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+
+
+
+
+
+
+##Dealing with Conditional Heteroscedaticity:
+
+
+```{r}
+ 
+DifflogGBPJPYGarch= diff(log(GBPJPYGARCHTS))*100
+plot(DifflogGBPJPYGarch)
+title("Plot of returns of GBPJPY", sub = "(2013-2018)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+##nature as almost at all lags the p-values fall below the significance levels.
+
+
+
+```{r}
+library(TSA)
+McLeod.Li.test(y= DifflogGBPJPYGarch,main="McLeod-Li test statistics for Daily return series")
+```
+
+
+
+## In order to get an order of GARCH , we further transform the return series into absolute values and squared return values.
+
+
+```{r}
+
+abs = abs(DifflogGBPJPYGarch)
+sqr = DifflogGBPJPYGarch^2
+```
+
+
+
+
+# GARCH Model specification:
+
+```{r}
+par(mfrow=c(1,2))
+acf(abs, ci.type="ma",main=" ACF for abs. returns")
+pacf(abs, main=" PACF plot for abs.returns")
+```
+
+
+##From ACF and PACF we see many lags are significant. Hence, we plot EACF to get the candidate models
+
+```{r}
+eacf(abs) 
+```
+
+##From the squared returns ACF and PACF plot, it is not that clear to derive the order of p and q. Hence, I approach EACF and the order of ARMA are ARMA (2,3), ARMA (3,3), ARMA (2,4). Thus, GARCH candidate models would be GARCH (3,2) GARCH (3,3) GARCH (4,2)
+
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(sqr, ci.type="ma",main="ACF  for sqr. return")
+pacf(sqr, main="PACF for sqr. return")
+```
+
+##
+
+```{r}
+eacf(sqr) 
+```
+
+
+
+### With reference to the Dickey-Fuller Test, p-value is less than the 0.02 and we can reject the null hypothesis stating the non-stationarity. Hence , we can proceed further for model selection .
+
+
+#MODEL ESTIMATION:
+##GARCH (2,1): for GBP and JPY Curruency Pair
+
+
+```{r}
+
+
+# GARCH(2,1)
+library(tseries)
+GBPJPYGARCHFit.21 = garch(DifflogGBPJPYGarch,order=c(2,1),trace =FALSE)
+summary(GBPJPYGARCHFit.21)
+```
+
+
+
+## GARCH (2,2):
+##This model can be interpreted as an overfit model of GARCH(2,1) and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+```{r}
+
+GBPJPYGARCHFit.22 = garch(DifflogGBPJPYGarch, order =c(2,2),trace =FALSE)
+summary(GBPJPYGARCHFit.22)
+```
+
+
+##GARCH (3,1):
+##This model can be interpreted as an overfit model of GARCH(2,1) and GARCH (2,2). This model may not be consider to be a good fit.
+
+
+
+```{r}
+
+GBPJPYGARCHFit.31 = garch(DifflogGBPJPYGarch,order=c(3,1),trace =FALSE)
+summary(GBPJPYGARCHFit.31)
+```
+
+
+##GARCH (3,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+# GARCH(3,2) 
+
+```{r}
+GBPJPYGARCHFit.32 = garch(DifflogGBPJPYGarch,order=c(3,2),trace =FALSE)
+summary(GBPJPYGARCHFit.32)
+```
+
+
+## GARCH (3,3):
+This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not consider to be a good fit.
+
+# GARCH(3,3)
+
+```{r}
+
+GBPJPYGARCHFit.33 = garch(DifflogGBPJPYGarch,order=c(3,3),trace =FALSE)
+summary(GBPJPYGARCHFit.33)
+```
+
+
+##GARCH (4,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not considered to be a good fit.
+
+
+
+```{r}
+
+GBPJPYGARCHFit.42 = garch(DifflogGBPJPYGarch,order=c(4,2),trace =FALSE)
+summary(GBPJPYGARCHFit.42)
+```
+
+
+
+# Model Selection:
+##Best possible model is selected by AIC scores of the models. From the below sort function, GARCH(3,1) would be the best model for the return series. From the p-value, 3.1 also has the lowest correlation
+
+
+```{r}
+library(dLagM)
+GARCHModelSelectionGBPJPY = AIC(GBPJPYGARCHFit.21,GBPJPYGARCHFit.22 ,GBPJPYGARCHFit.31,GBPJPYGARCHFit.32,GBPJPYGARCHFit.33, GBPJPYGARCHFit.42)
+sortScore(GARCHModelSelectionGBPJPY, score ="aic")
+```
+
+
+# Model Fitting:
+
+```{r}
+library(rugarch)
+GBPJPYmodel1.1<-ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)), 
+                  mean.model = list(armaOrder = c(3, 9), include.mean = TRUE), 
+                  distribution.model = "norm")
+                  
+GBPJPYgarchMODEL1.1<-ugarchfit(spec=GBPJPYmodel1.1,data=DifflogGBPJPYGarch, out.sample = 100)
+plot(GBPJPYgarchMODEL1.1,which="all")
+```
+
+##Model Diagnostics
+
+```{r}
+GBPJPYgarchMODEL1.1
+```
+
+
+## Forecasting
+
+```{r}
+forcgarchGBPJPY= ugarchforecast(GBPJPYgarchMODEL1.1, data = DiffGBPJPYLogTran, n.ahead = 100, n.roll =10)
+print(forcgarchGBPJPY)
+```
+
+
+## plotting
+
+```{r}
+plot(forcgarchGBPJPY, which= "all")
+```
+
+## Forecasting the rate
+
+
+```{r}
+RateGBPJPYGarch =141.168	
+  RGBPJPYGARCH <-c( 0.075134, 0.059751, 0.015244, -0.006839, -0.037646, -0.011593, 0.019804, 0.053840, 0.048703, 
+0.017991, -0.019754, -0.031488, -0.009932, 0.029102, 0.054199, 0.046000, 0.010720, -0.023724, -0.003770, -0.030296, 
+0.034943, 0.055379, 0.041436, 0.004096, -0.027247, -0.027912, 0.002626, 0.040326, 0.055505, 0.036209, -0.002371, 
+-0.029861, -0.024615, 0.009239, 0.045048, 0.054618, 0.030411, -0.008516, -0.031514, -0.020475, 0.015913, 0.049002,  0.052737, 0.024177, -0.014195, -0.032167, -0.015587, 0.022494, 0.052094, 0.049906, 0.017650, -0.019279, -0.031805, 
+-0.010063, 0.028830, 0.046189, 0.010983, -0.023647, -0.030434, -0.004033, 0.034773, 0.055430, 0.041672, 0.004328,  -0.027199, -0.028087, 0.002366, 0.040186, 0.055595, 0.036458, -0.002159, -0.029853, -0.024817, 0.008985, 0.044943, 0.054744, 0.030669, -0.008329, -0.031545, -0.020700, 0.015672, 0.048934, 0.052897, 0.024438, -0.014038, -0.032238, 
+-0.015829, 0.022271, 0.052065, 0.050095, 0.017908, -0.019155, -0.031912, -0.010318, 0.028629, 0.054264, 0.046403, 0.011232, 0.011232, -0.023559 
+
+)
+  GBPJPYgarch= 0
+  for (i in 1:100){
+    GBPJPYgarch =  RateGBPJPYGarch *((2.71828)^(RGBPJPYGARCH[i]/100))
+    print(GBPJPYgarch)
+    RateGBPJPYGarch=GBPJPYgarch
+  }
+  
+```
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,121 @@
+---
+title: "Prophet Model Eur And USD"
+author: "Jane"
+date: "11/05/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Forcasting Exchange Rate Using Prophet Model for EUR And USD
+## Reading EUR and USD Currency into r
+
+
+```{r}
+library(readr)
+library(dplyr)
+EURUSDProphet<-  read.csv ("EURUSD_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateEURUSD = ("CLOSE"))
+
+  
+head(EURUSDProphet)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+EURUSDProphet$Date <- lubridate::ymd(EURUSDProphet$Date)
+head(EURUSDProphet)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(EURUSDProphet))
+
+```
+
+
+## Creating a new variable for Date and RateEURUSD called ds and y
+
+```{r}
+EURUSDProphet1 <- mutate (EURUSDProphet, ds = Date, y = RateEURUSD)
+head (EURUSDProphet1)
+
+```
+
+## Plotting the EURCADProphet Dataset
+
+
+```{r}
+library(ggplot2)
+ggplot(EURUSDProphet, aes(x = Date, y= RateEURUSD))+
+  geom_line()
+```
+
+##Since prophet expect columns to match ds and y, Selecting y and ds as a new dataframe
+
+```{r}
+EURUSDProphet1 <- select(EURUSDProphet1, "ds", "y")
+head(EURUSDProphet1)
+```
+
+
+
+## Fiting model
+
+```{r}
+library(prophet)
+FitEURUSDProphet <- prophet(EURUSDProphet1)
+FitEURUSDProphet
+```
+
+##Making Prediction with ds column containing the date
+
+```{r}
+FutureRate_EURUSDProphet <- make_future_dataframe(FitEURUSDProphet, periods = 100)
+tail(FutureRate_EURUSDProphet)
+```
+
+
+## Using the function predict to get the predicted values 
+
+
+```{r}
+EURUSDProphet_Forecast <- predict(FitEURUSDProphet, FutureRate_EURUSDProphet)
+tail(EURUSDProphet_Forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')], 100)
+
+```
+
+
+
+## Ploting forecasted result
+
+```{r}
+plot(FitEURUSDProphet, EURUSDProphet_Forecast)
+
+```
+
+## You can use the prophet_plot_components function to see the forecast broken down into trend, weekly seasonality, and yearly seasonality.
+
+
+```{r}
+
+prophet_plot_components(FitEURUSDProphet, EURUSDProphet_Forecast)
+
+```
+
+
+
+
+
+

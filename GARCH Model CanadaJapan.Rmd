@@ -1,0 +1,317 @@
+---
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+P---
+title: "GARCH Model"
+author: "Jane"
+date: "19/04/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Forcasting Exchange Rate Using GARCH Model
+
+## Reading Canadian and Japanes Currency into r
+```{r}
+library(readr)
+library(dplyr)
+CanJapCurrency <- readxl::read_xlsx ("CADJPY_Candlestick_1_D_BID_01.01.2000-31.12.2020.xlsx")%>%
+  select('Gmt time', Close)%>%
+  rename(Date = ('Gmt time'), Rate = ("Close"))
+
+head(CanJapCurrency)
+```
+
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+CanJapCurrency$Date <- lubridate::ymd(CanJapCurrency$Date)
+head(CanJapCurrency)
+
+```
+
+
+|
+##Checking for obvious errors
+```{r}
+#Checking for obvious errors
+which(is.na(CanJapCurrency))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+CanjapTS<- ts(as.vector(CanJapCurrency$Rate),  frequency = 314, start= c(2000,01,03))
+plot.ts(CanjapTS)
+title("Time Series plot of CanJapTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+## Automatic Colleration and Partial Automatic Correlation
+##The ACF plot clearly states the high correlation among successive points. It also shows a strong evidence of an existence of a trend as expected from the time series plot. The PACF plot shows one significant correlation on the plot. Unit root test proves the nature of non-stationarity of the series.
+
+
+```{r}
+
+par(mfrow=c(1,2))
+acf(CanjapTS, main=" ACF ")
+pacf(CanjapTS, main=" PACF ")
+```
+
+## Differening the series to ensure stationality
+
+```{r}
+ar(diff(CanjapTS))
+```
+
+
+
+##Augmented Dickey-Fuller test
+##The Augmented Dickey-Fuller test allows for higher-order autoregressive processes 
+
+```{r}
+library(tseries)
+adf.test(CanjapTS, alternative = "stationary", k = 0)
+```
+
+##Ensuring the stationarity of the series:
+##Transformation:Natural Logarithmic transformation is one of the best approach to look for stationarity of the sereis.
+
+
+```{r}
+
+
+CanJapLogTran<-log(CanjapTS)
+
+ar(CanJapLogTran)
+```
+
+
+## Augmented Dickey-Fuller Test for log Tranformation
+
+```{r}
+adf.test(CanJapLogTran, alternative = "stationary", k = 0)
+```
+
+
+## ACF and PACF for log transformation
+## The ACF and PACF plot are similar to the original series and we can still suspect the non-stationarity of the series and this is also supported by Unit root test.
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(CanJapLogTran, ci.type='ma', main=" ACF of transformed data")
+
+pacf(CanJapLogTran,  main="PACF of transformed data")
+
+```
+
+
+##Differencing as my next approach to achieve the stationarity of the series.
+
+
+```{r}
+DiffCanJapLogTran<-diff(CanJapLogTran) 
+ar(DiffCanJapLogTran)
+```
+
+
+## Runing ACF and PACF for the log transform Difference
+
+##At the first difference of the transformed series, we can observe the plots of ACF and PACF shows a bit difference to the previous steep decreasing pattern. As we can ensure the assumption of stationarity with Unit-Root test.
+
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(DiffCanJapLogTran, ci.type='ma', main="ACF of 1st differnce")
+pacf(DiffCanJapLogTran, main="PACF of 1st differnce")
+```
+
+
+## Augmented Dickey-Fuller Test for log Tranformation Difference
+
+```{r}
+adf.test(DiffCanJapLogTran, alternative = "stationary", k = 0)
+```
+### With reference to the Dickey-Fuller Test, p-value is less than the 0.02 and we can reject the null hypothesis stating the non-stationarity. Hence , we can proceed further for model selection .
+
+
+#MODEL ESTIMATION:
+##GARCH (2,1): for Canadian and Japanese Curruency Pair
+
+
+```{r}
+
+
+# GARCH(2,1)
+CanJapGARCHFit.21 = garch(DiffCanJapLogTran,order=c(2,1),trace =FALSE)
+summary(CanJapGARCHFit.21)
+```
+
+
+
+## GARCH (2,2):
+##This model can be interpreted as an overfit model of GARCH(2,1) and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+```{r}
+
+
+CanJapGARCHFit.22 = garch(DiffCanJapLogTran, order =c(2,2),trace =FALSE)
+summary(CanJapGARCHFit.22)
+```
+
+
+##GARCH (3,1):
+##This model can be interpreted as an overfit model of GARCH(2,1) and GARCH (2,2). This model may not be consider to be a good fit.
+
+
+
+```{r}
+
+CanJapGARCHFit.31 = garch(DiffCanJapLogTran,order=c(3,1),trace =FALSE)
+summary(CanJapGARCHFit.31)
+```
+
+
+##GARCH (3,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+# GARCH(3,2) 
+
+```{r}
+CanJapGARCHFit.32 = garch(DiffCanJapLogTran,order=c(3,2),trace =FALSE)
+summary(CanJapGARCHFit.32)
+```
+
+
+## GARCH (3,3):
+This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not consider to be a good fit.
+
+# GARCH(3,3)
+
+```{r}
+
+CanJapGARCHFit.33 = garch(DiffCanJapLogTran,order=c(3,3),trace =FALSE)
+summary(CanJapGARCHFit.33)
+```
+
+
+##GARCH (4,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not considered to be a good fit.
+
+
+
+```{r}
+
+CanJapGARCHFit.42 = garch(DiffCanJapLogTran,order=c(4,2),trace =FALSE)
+summary(CanJapGARCHFit.42)
+```
+
+
+#Model Selection:
+
+##Best possible model is selected by AIC scores of the models. From the below sort function, GARCH(2,2) would be the best model for the return series.
+
+```{r}
+library(dLagM)
+GARCHModelSelectionCanJap = AIC(CanJapGARCHFit.21,CanJapGARCHFit.22 ,CanJapGARCHFit.31,CanJapGARCHFit.32,CanJapGARCHFit.33, CanJapGARCHFit.42)
+sortScore(GARCHModelSelectionCanJap, score ="aic")
+```
+
+
+# Model Fitting:
+
+```{r}
+library(rugarch)
+CanJapmodel2.1<-ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(2, 2)), 
+                  mean.model = list(armaOrder = c(1, 1), include.mean = TRUE), 
+                  distribution.model = "norm")
+                  
+MODEL2.1<-ugarchfit(spec=CanJapmodel2.1,data=DiffCanJapLogTran, out.sample = 100)
+plot(MODEL2.1,which="all")
+```
+
+##Model Diagnostics
+
+```{r}
+MODEL2.1
+```
+
+
+## Forecasting
+
+```{r}
+forc = ugarchforecast(MODEL2.1, data = DiffCanJapLogTran, n.ahead = 100, n.roll =10)
+print(forc)
+```
+
+
+## plotting
+
+```{r}
+plot(forc, which= "all")
+```
+## Forecasting the rate
+```{r}
+p.t_1 = 81.074
+  R_t <-c(0.005572, 0.005672, 0.005652, 0.005696, 0.005705, 0.005733, 0.005750, 0.005772, 0.005792, 0.005812, 0.005832, 0.005851, 0.005871, 0.005890, 0.005909, 0.005927, 0.005946, 0.005964, 0.005982, 0.006000, 0.006018, 0.006036, 0.006053, 0.006070, 0.006087, 0.006104, 0.006120, 0.006137, 0.006153, 0.006169, 0.006185, 0.006201, 0.006216, 0.006232, 0.006247, 0.006262, 0.006277, 0.006292, 0.006307, 0.006321, 0.006335, 0.006350, 0.006364, 0.006378, 0.006391, 0.006405, 0.006418, 0.006432, 0.006445, 0.006458, 0.006471, 0.006484, 0.006497, 0.006509, 0.006522, 0.006534, 0.006546, 0.006558, 0.006570, 0.006582, 0.006594, 0.006606, 0.006617, 0.006629, 0.006640, 0.006651, 0.006662, 0.006673, 0.006684, 0.006695, 0.006705, 0.006716, 0.006726, 0.006737, 0.006747, 0.006757, 0.006767, 0.006777, 0.006787, 0.006797, 0.006807, 0.006816, 0.006826, 0.006835, 0.006845, 0.006854, 0.006863, 0.006872, 0.006881, 0.006890, 0.006899, 0.006908, 0.006916, 0.006925, 0.006934, 0.006942, 0.006950, 0.006959, 0.006967, 0.006975)
+  p_t= 0 
+  for (i in 1:100){
+    p_t =  p.t_1 *((2.71828)^(R_t[i]/100))
+    print(p_t)
+    p.t_1=p_t
+  }
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

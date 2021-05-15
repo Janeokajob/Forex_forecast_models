@@ -1,0 +1,112 @@
+---
+title: "Prophet Model EUR and CAD"
+author: "Jane"
+date: "10/05/2021"
+output: html_document
+---
+
+# Forcasting Exchange Rate Using Prophet Model for EUR And CAD
+## Reading EUR and CAD Currency into r
+
+
+
+```{r}
+library(readr)
+library(dplyr)
+EURCADProphet<-  read.csv ("EURCAD_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateEURCAD = ("CLOSE"))
+
+  
+head(EURCADProphet)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+EURCADProphet$Date <- lubridate::ymd(EURCADProphet$Date)
+tail(EURCADProphet)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(EURCADProphet))
+
+```
+## Creating a new variable for Date and RateEURCAD called ds and y
+
+```{r}
+EURCADProphet1 <- mutate (EURCADProphet, ds = Date, y = RateEURCAD)
+head (EURCADProphet1)
+
+```
+
+## Plotting the EURCADProphet Dataset
+
+
+```{r}
+library(ggplot2)
+ggplot(EURCADProphet, aes(x = Date, y= RateEURCAD))+
+  geom_line()
+```
+
+##Since prophet expect columns to match ds and y, Selecting y and ds as a new dataframe
+
+```{r}
+EURCADProphet1 <- select(EURCADProphet1, "ds", "y")
+head(EURCADProphet1)
+```
+
+
+
+## Fiting model
+
+```{r}
+library(prophet)
+FitEURCADProphet <- prophet(EURCADProphet1)
+FitEURCADProphet
+```
+
+##Making Prediction with ds column containing the date
+
+```{r}
+FutureRate_EURCADProphet <- make_future_dataframe(FitEURCADProphet, periods = 100)
+tail(FutureRate_EURCADProphet)
+```
+
+
+## Using the function predict to get the predicted values 
+
+
+```{r}
+EURCADProphet_Forecast <- predict(FitEURCADProphet, FutureRate_EURCADProphet)
+tail(EURCADProphet_Forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')], 100)
+
+```
+
+
+
+## Ploting forecasted result
+
+```{r}
+plot(FitEURCADProphet, EURCADProphet_Forecast)
+
+```
+
+## You can use the prophet_plot_components function to see the forecast broken down into trend, weekly seasonality, and yearly seasonality.
+
+
+```{r}
+
+prophet_plot_components(FitEURCADProphet, EURCADProphet_Forecast)
+
+```
+
+
+

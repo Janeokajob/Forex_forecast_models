@@ -1,0 +1,312 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+P---
+title: "GARCH Model"
+author: "Jane"
+date: "19/04/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Forcasting Exchange Rate Using GARCH Model
+
+
+
+## Reading Canadian and Japanes Currency into r
+```{r}
+library(readr)
+library(dplyr)
+CanJapCurrency <- readxl::read_xlsx ("CADJPY_Candlestick_1_D_BID_01.01.2000-31.12.2020.xlsx")%>%
+  select('Gmt time', Close)%>%
+  rename(Date = ('Gmt time'), RateCADJPY = ("Close"))
+
+head(CanJapCurrency)
+```
+
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+CanJapCurrency$Date <- lubridate::ymd(CanJapCurrency$Date)
+head(CanJapCurrency)
+
+```
+
+
+
+##Checking for obvious errors
+```{r}
+#Checking for obvious errors
+which(is.na(CanJapCurrency))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+CanjapTS<- ts(as.vector(CanJapCurrency$RateCADJPY),  frequency = 314, start= c(2000,01,03))
+plot.ts(CanjapTS)
+title("Time Series plot of CanJapTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+
+
+##Dealing with Conditional Heteroscedaticity:
+
+
+```{r}
+ 
+DifflogCADJPYGarch= diff(log(CanjapTS))*100
+plot(DifflogCADJPYGarch)
+title("Plot of returns of CADJPY", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+##nature as almost at all lags the p-values fall below the significance levels.
+
+
+
+```{r}
+library(TSA)
+McLeod.Li.test(y= DifflogCADJPYGarch,main="McLeod-Li test statistics for Daily return series")
+```
+
+
+
+## In order to get an order of GARCH , we further transform the return series into absolute values and squared return values.
+
+
+```{r}
+
+abs = abs(DifflogCADJPYGarch)
+sqr = DifflogCADJPYGarch^2
+```
+
+
+
+
+# GARCH Model specification:
+
+```{r}
+par(mfrow=c(1,2))
+acf(abs, ci.type="ma",main=" ACF for abs. returns")
+pacf(abs, main=" PACF plot for abs.returns")
+```
+
+
+##From ACF and PACF we see many lags are significant. Hence, we plot EACF to get the candidate models
+
+```{r}
+eacf(abs) 
+```
+
+##From the squared returns ACF and PACF plot, it is not that clear to derive the order of p and q. Hence, I approach EACF and the order of ARMA are ARMA (2,3), ARMA (3,3), ARMA (2,4). Thus, GARCH candidate models would be GARCH (3,2) GARCH (3,3) GARCH (4,2)
+
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(sqr, ci.type="ma",main="ACF  for sqr. return")
+pacf(sqr, main="PACF for sqr. return")
+```
+
+##
+
+```{r}
+eacf(sqr) 
+```
+
+
+
+### With reference to the Dickey-Fuller Test, p-value is less than the 0.02 and we can reject the null hypothesis stating the non-stationarity. Hence , we can proceed further for model selection .
+
+
+#MODEL ESTIMATION:
+##GARCH (2,1): for GBP and USD Curruency Pair
+
+
+```{r}
+
+
+# GARCH(2,1)
+library(tseries)
+CADJPYGARCHFit.21 = garch(DifflogCADJPYGarch,order=c(2,1),trace =FALSE)
+summary(CADJPYGARCHFit.21)
+```
+
+
+
+## GARCH (2,2):
+##This model can be interpreted as an overfit model of GARCH(2,1) and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+```{r}
+
+CADJPYGARCHFit.22 = garch(DifflogCADJPYGarch, order =c(2,2),trace =FALSE)
+summary(CADJPYGARCHFit.22)
+```
+
+
+##GARCH (3,1):
+##This model can be interpreted as an overfit model of GARCH(2,1) and GARCH (2,2). This model may not be consider to be a good fit.
+
+
+
+```{r}
+
+CADJPYGARCHFit.31 = garch(DifflogCADJPYGarch,order=c(3,1),trace =FALSE)
+summary(CADJPYGARCHFit.31)
+```
+
+
+##GARCH (3,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+# GARCH(3,2) 
+
+```{r}
+CADJPYGARCHFit.32 = garch(DifflogCADJPYGarch,order=c(3,2),trace =FALSE)
+summary(CADJPYGARCHFit.32)
+```
+
+
+## GARCH (3,3):
+This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not consider to be a good fit.
+
+# GARCH(3,3)
+
+```{r}
+
+CADJPYGARCHFit.33 = garch(DifflogCADJPYGarch,order=c(3,3),trace =FALSE)
+summary(CADJPYGARCHFit.33)
+```
+
+
+##GARCH (4,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not considered to be a good fit.
+
+
+
+```{r}
+
+CADJPYGARCHFit.42 = garch(DifflogCADJPYGarch,order=c(4,2),trace =FALSE)
+summary(CADJPYGARCHFit.42)
+```
+  ##
+  
+```{r}
+
+CADJPYGARCHFit.11 = garch(DifflogCADJPYGarch,order=c(1,1),trace =FALSE)
+summary(CADJPYGARCHFit.11)
+```
+
+
+# Model Selection:
+##Best possible model is selected by AIC scores of the models. From the below sort function, GARCH(3,1) would be the best model for the return series. From the p-value, 3.1 also has the lowest correlation
+
+
+```{r}
+library(dLagM)
+GARCHModelSelectionCADJPY = AIC(CADJPYGARCHFit.21,CADJPYGARCHFit.22 ,CADJPYGARCHFit.31,CADJPYGARCHFit.32,CADJPYGARCHFit.33, CADJPYGARCHFit.42,CADJPYGARCHFit.11)
+sortScore(GARCHModelSelectionCADJPY, score ="aic")
+```
+
+
+# Model Fitting:
+
+```{r}
+library(rugarch)
+CADJPYmodel1.1<-ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1,1)), 
+                  mean.model = list(armaOrder = c(2,5), include.mean = TRUE), 
+                  distribution.model = "norm")
+                  
+CADJPYgarchMODEL1.1<-ugarchfit(spec=CADJPYmodel1.1,data=DifflogCADJPYGarch, out.sample = 100)
+plot(CADJPYgarchMODEL1.1,which="all")
+```
+
+##Model Diagnostics
+
+```{r}
+CADJPYgarchMODEL1.1
+```
+
+
+## Forecasting
+
+```{r}
+forcgarchCADJPY= ugarchforecast(CADJPYgarchMODEL1.1, data = DifflogCADJPYGarch, n.ahead = 100, n.roll = 10)
+print(forcgarchCADJPY)
+```
+
+
+## plotting
+
+```{r}
+plot(forcgarchCADJPY, which= "all")
+```
+
+## Forecasting the rate
+
+
+```{r}
+p.t_1 =81.074
+  R_t <- c(   0.042248, -0.014230, 0.012946, 0.003402, 0.013277, 0.003496, 0.013298, 0.003588, 0.013319, 0.003679, 
+0.013339, 0.003768, 0.013357, 0.003855, 0.013375, 0.003941, 0.013391, 0.004026, 0.013407, 0.004109, 0.013421, 0.004190,  0.013435, 0.004270, 0.013447, 0.004349, 0.013459, 0.004426, 0.013470, 0.004502, 0.013480, 0.004577, 0.013490, 0.004651, 0.013498, 0.004723, 0.013506, 0.004794, 0.013513, 0.004864, 0.013519, 0.004932, 0.013525, 0.005000, 0.013530, 0.005066, 0.013534, 0.005132, 0.013538, 0.005196, 0.013541, 0.005259, 0.013543, 0.005321, 
+0.013545, 0.005383, 0.013547, 0.005443, 0.013547, 0.005502, 0.013548, 0.005560, 0.013547, 0.005618, 0.013547,  0.005674, 0.013546, 0.005730, 0.013544, 0.005785, 0.013542, 0.005839, 0.013539, 0.005892, 0.013536, 0.005944, 
+0.013533, 0.005995, 0.013529, 0.006046, 0.013525, 0.006096, 0.013521, 0.006145, 0.013516, 0.006193, 0.013510,  0.006241, 0.013505, 0.006288, 0.013499, 0.006334, 0.013493, 0.006380, 0.013487, 0.006425, 0.013480, 0.006469, 0.013473, 0.006513 
+
+
+
+
+)
+  p_t= 0
+  for (i in 1:100){
+    p_t =  p.t_1  *((2.71828)^(R_t[i]/100))
+   print(p_t)
+    p.t_1=p_t
+  }
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

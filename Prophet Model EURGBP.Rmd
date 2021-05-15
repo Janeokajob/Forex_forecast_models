@@ -1,0 +1,120 @@
+---
+title: "Prophet EUR And GBP"
+author: "Jane"
+date: "11/05/2021"
+output: html_document
+---
+
+
+
+
+# Forcasting Exchange Rate Using Prophet Model for EUR And GBP
+## Reading EUR and GBP Currency into r
+
+
+```{r}
+library(readr)
+library(dplyr)
+EURGBPProphet<-  read.csv ("EURGBP_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateEURGBP = ("CLOSE"))
+
+  
+head(EURGBPProphet)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+EURGBPProphet$Date <- lubridate::ymd(EURGBPProphet$Date)
+head(EURGBPProphet)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(EURGBPProphet))
+
+```
+
+
+## Creating a new variable for Date and RateEURGBP called ds and y
+
+```{r}
+EURGBPProphet1 <- mutate (EURGBPProphet, ds = Date, y = RateEURGBP)
+head (EURGBPProphet1)
+
+```
+
+## Plotting the EURGBPProphet Dataset
+
+
+```{r}
+library(ggplot2)
+ggplot(EURGBPProphet, aes(x = Date, y= RateEURGBP))+
+  geom_line()
+```
+
+##Since prophet expect columns to match ds and y, Selecting y and ds as a new dataframe
+
+```{r}
+EURGBPProphet1 <- select(EURGBPProphet1, "ds", "y")
+head(EURGBPProphet1)
+```
+
+
+
+## Fitting model
+
+```{r}
+library(prophet)
+FitEURGBPProphet <- prophet(EURGBPProphet1)
+FitEURGBPProphet
+```
+
+##Making Prediction with ds column containing the date
+
+```{r}
+FutureRate_EURGBPProphet <- make_future_dataframe(FitEURGBPProphet, periods = 100)
+tail(FutureRate_EURGBPProphet)
+```
+
+
+## Using the function predict to get the predicted values 
+
+
+```{r}
+EURGBPProphet_Forecast <- predict(FitEURGBPProphet, FutureRate_EURGBPProphet)
+tail(EURGBPProphet_Forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')], 100)
+
+```
+
+
+
+## Ploting forecasted result
+
+```{r}
+plot(FitEURGBPProphet, EURGBPProphet_Forecast)
+
+```
+
+## You can use the prophet_plot_components function to see the forecast broken down into trend, weekly seasonality, and yearly seasonality.
+
+
+```{r}
+
+prophet_plot_components(FitEURGBPProphet, EURGBPProphet_Forecast)
+
+```
+
+
+
+
+
+
+

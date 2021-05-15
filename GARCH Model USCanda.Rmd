@@ -1,0 +1,421 @@
+---
+title: "GARCH Model USCanada"
+author: "Jane"
+date: "27/04/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+
+# Forcasting Exchange Rate Using GARCH Model for US Dollar and Canadaian Dolla
+
+## Reading Canadian and Canaada Currency into r
+```{r}
+library(readr)
+library(dplyr)
+USDCADCurrencyGARCH <-  read.csv ("USDCAD_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateUSCAD = ("CLOSE"))
+
+  
+head(USDCADCurrencyGARCH)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+USDCADCurrencyGARCH$Date <- lubridate::ymd(USDCADCurrencyGARCH$Date)
+head(USDCADCurrencyGARCH)
+
+```
+
+
+
+##Checking for obvious errors
+```{r}
+#Checking for obvious errors
+which(is.na(USDCADCurrencyGARCH))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+USDCADGARCHTS<- ts(as.vector(USDCADCurrencyGARCH$Rate),  frequency = 314, start= c(2000,01,03))
+plot.ts(USDCADGARCHTS)
+title("Time Series plot of USDCADTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+## Automatic Colleration and Partial Automatic Correlation
+##The ACF plot clearly states the high correlation among successive points. It also shows a strong evidence of an existence of a trend as expected from the time series plot. The PACF plot shows one significant correlation on the plot. Unit root test proves the nature of non-stationarity of the series.
+
+
+```{r}
+
+par(mfrow=c(1,2))
+acf(USDCADGARCHTS, main=" ACF ")
+pacf(USDCADGARCHTS, main=" PACF ")
+```
+
+
+
+
+## Differening the series to ensure stationality
+
+```{r}
+ar(diff(USDCADGARCHTS))
+```
+
+
+
+##Augmented Dickey-Fuller test
+##The Augmented Dickey-Fuller test allows for higher-order autoregressive processes 
+
+```{r}
+library(tseries)
+adf.test(USDCADGARCHTS, alternative = "stationary", k = 0)
+```
+
+##Ensuring the stationarity of the series:
+##Transformation:Natural Logarithmic transformation is one of the best approach to look for stationarity of the sereis.
+
+
+```{r}
+
+
+USDCADLogTranGARCH<-log(USDCADGARCHTS)
+
+ar(USDCADLogTranGARCH)
+```
+
+
+## Augmented Dickey-Fuller Test for log Tranformation
+
+```{r}
+adf.test(USDCADLogTranGARCH, alternative = "stationary", k = 0)
+```
+
+
+## ACF and PACF for log transformation
+## The ACF and PACF plot are similar to the original series and we can still suspect the non-stationarity of the series and this is also supported by Unit root test.
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(USDCADLogTranGARCH, ci.type='ma', main=" ACF of transformed data")
+
+pacf(USDCADLogTranGARCH,  main="PACF of transformed data")
+
+```
+
+
+##Differencing as my next approach to achieve the stationarity of the series.
+
+
+```{r}
+DiffUSDCADLogTranGARCH<-diff(USJapLogTranGARCH) 
+ar(DiffUSDCADLogTranGARCH)
+```
+
+
+## Runing ACF and PACF for the log transform Difference
+
+##At the first difference of the transformed series, we can observe the plots of ACF and PACF shows a bit difference to the previous steep decreasing pattern. As we can ensure the assumption of stationarity with Unit-Root test.
+
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(DiffUSDCADLogTranGARCH, ci.type='ma', main="ACF of 1st differnce")
+pacf(DiffUSDCADLogTranGARCH, main="PACF of 1st differnce")
+```
+
+
+## Augmented Dickey-Fuller Test for log Tranformation Difference
+
+```{r}
+adf.test(DiffUSDCADLogTranGARCH, alternative = "stationary", k = 0)
+```
+
+##Dealing with Conditional Heteroscedaticity:
+##To deal with volatile nature of bitcoin series, I have transformed the series as returns of the bitcoin.
+
+
+
+```{r}
+ 
+DifflogUSDCADGarch= diff(log(USJapGARCHTS))*100
+plot(DifflogUSDCADGarch)
+title("Plot of returns of USJapan", sub = "(2013-2018)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+##nature as almost at all lags the p-values fall below the significance levels.
+
+
+```{r}
+library(TSA)
+McLeod.Li.test(y= DifflogUSDCADGarch,main="McLeod-Li test statistics for Daily return series")
+```
+
+
+
+## In order to get an order of GARCH , we further transform the return series into absolute values and squared return values.
+
+
+```{r}
+
+abs = abs(DifflogUSDCADGarch)
+sqr = DifflogUSDCADGarch^2
+```
+
+
+
+
+# GARCH Model specification:
+
+```{r}
+par(mfrow=c(1,2))
+acf(abs, ci.type="ma",main=" ACF for abs. returns")
+pacf(abs, main=" PACF plot for abs.returns")
+```
+
+
+##From ACF and PACF we see many lags are significant. Hence, we plot EACF to get the candidate models
+
+```{r}
+library(TSA)
+eacf(abs) 
+```
+
+##From the squared returns ACF and PACF plot, it is not that clear to derive the order of p and q. Hence, I approach EACF and the order of ARMA are ARMA (2,3), ARMA (3,3), ARMA (2,4). Thus, GARCH candidate models would be GARCH (3,2) GARCH (3,3) GARCH (4,2)
+
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(sqr, ci.type="ma",main="ACF  for sqr. return")
+pacf(sqr, main="PACF for sqr. return")
+```
+
+##
+
+```{r}
+eacf(sqr) 
+```
+
+
+
+### With reference to the Dickey-Fuller Test, p-value is less than the 0.02 and we can reject the null hypothesis stating the non-stationarity. Hence , we can proceed further for model selection .
+
+
+#MODEL ESTIMATION:
+##GARCH (2,1): for US and Japanese Curruency Pair
+
+
+```{r}
+
+
+# GARCH(2,1)
+USDCADGARCHFit.21 = garch(DifflogUSDCADGarch,order=c(2,1),trace =FALSE)
+summary(USDCADGARCHFit.21)
+```
+
+
+
+## GARCH (2,2):
+##This model can be interpreted as an overfit model of GARCH(2,1) and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+```{r}
+
+
+USDCADGARCHFit.22 = garch(DifflogUSDCADGarch, order =c(2,2),trace =FALSE)
+summary(USDCADGARCHFit.22)
+```
+
+
+##GARCH (3,1):
+##This model can be interpreted as an overfit model of GARCH(2,1) and GARCH (2,2). This model may not be consider to be a good fit.
+
+
+
+```{r}
+
+USDCADGARCHFit.31 = garch(DifflogUSDCADGarch,order=c(3,1),trace =FALSE)
+summary(USDCADGARCHFit.31)
+```
+
+
+##GARCH (3,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+# GARCH(3,2) 
+
+```{r}
+USDCADGARCHFit.32 = garch(DifflogUSDCADGarch,order=c(3,2),trace =FALSE)
+summary(USDCADGARCHFit.32)
+```
+
+
+## GARCH (3,3):
+This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not consider to be a good fit.
+
+# GARCH(3,3)
+
+```{r}
+
+USDCADGARCHFit.33 = garch(DifflogUSDCADGarch,order=c(3,3),trace =FALSE)
+summary(USDCADGARCHFit.33)
+```
+
+
+##GARCH (1,1):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not considered to be a good fit.
+
+
+
+```{r}
+
+USDCADGARCHFit.11 = garch(DifflogUSDCADGarch,order=c(1,1),trace =FALSE)
+summary(USDCADGARCHFit.11)
+```
+
+
+
+# Model Selection:
+##Best possible model is selected by AIC scores of the models. From the below sort function, GARCH(3,1) would be the best model for the return series. From the p-value, 3.1 also has the lowest correlation
+
+
+```{r}
+library(dLagM)
+GARCHModelSelectionUSDCAD = AIC(USDCADGARCHFit.21,USDCADGARCHFit.22 ,USDCADGARCHFit.31,USDCADGARCHFit.32,USDCADGARCHFit.33, USDCADGARCHFit.11)
+sortScore(GARCHModelSelectionUSDCAD, score ="aic")
+```
+
+
+# Model Fitting:
+
+```{r}
+library(rugarch)
+USDCADmodel3.1<-ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)), 
+                  mean.model = list(armaOrder = c(3,7), include.mean = TRUE), 
+                  distribution.model = "norm")
+                  
+USDCADgarchMODEL3.1<-ugarchfit(spec=USDCADmodel3.1,data=DifflogUSJapGarch, out.sample = 100)
+plot(USDCADgarchMODEL3.1,which="all")
+```
+
+##Model Diagnostics
+
+```{r}
+USDCADgarchMODEL3.1
+```
+
+
+## Forecasting
+
+```{r}
+forcgarchUSDCAD= ugarchforecast(USDCADgarchMODEL3.1, data = DifflogUSDCADGarch, n.ahead = 100, n.roll =10)
+print(forcgarchUSDCAD)
+```
+
+
+## plotting
+
+```{r}
+plot(forcgarchUSDCAD, which= "all")
+```
+
+## Forecasting the rate
+
+
+```{r}
+RateUSDCADGarch = 81.074
+  RUSDCADGARCH <-c(0.0112569 0.4556
+T+2    0.0046645 0.4573
+T+3   -0.0101408 0.4589
+T+4   -0.0016507 0.4606
+T+5    0.0026038 0.4622
+T+6    0.0119094 0.4638
+T+7    0.0157465 0.4653
+T+8    0.0133890 0.4669
+T+9    0.0060143 0.4684
+T+10  -0.0005449 0.4699
+T+11  -0.0021370 0.4714
+T+12   0.0021341 0.4728
+T+13   0.0088827 0.4743
+T+14   0.0133894 0.4757
+T+15   0.0127099 0.4771
+T+16   0.0076703 0.4785
+T+17   0.0019896 0.4798
+T+18  -0.0004145 0.4812
+T+19   0.0018728 0.4825
+T+20   0.0069786 0.4838
+T+21   0.0112341 0.4851
+T+22   0.0117977 0.4864
+T+23   0.0085339 0.4877
+T+24   0.0039240 0.4889
+T+25   0.0011991 0.4901
+T+26   0.0020888 0.4913
+T+27   0.0057435 0.4925
+T+28   0.0094872 0.4937
+T+29   0.0107635 0.4949
+T+30   0.0088690 0.4960
+T+31   0.0053078 0.4972
+T+32   0.0026184 0.4983
+T+33   0.0025742 0.4994
+T+34   0.0050272 0.5005
+T+35   0.0081382 0.5016
+T+36   0.0097433 0.5026
+T+37   0.0088506 0.5037
+T+38   0.0062363 0.5047
+T+39   0.0037974 0.5057
+T+40   0.0031837 0.5067
+T+41   0.0046903 0.5077
+T+42   0.0071481 0.5087
+T+43   0.0088186 0.5097
+T+44   0.0086168 0.5107
+T+45   0.0068062 0.5116
+T+46   0.0047286 0.5126
+T+47   0.0038175 0.5135
+T+48   0.0046149 0.5144
+T+49   0.0064626 0.5153
+T+50   0.0080311 0.5162
+T+51   0.0082706 0.5171
+T+52   0.0071074 0.5180
+T+53   0.0054285 0.5188
+T+54   0.0044123 0.5197
+T+55   0.0047065 0.5205
+)
+  USDCADPgarch= 0 
+  for (i in 1:100){
+    USDCADgarch =  RateUSDCADGarch *((2.71828)^(RUSDCADGARCH[i]/100))
+    print(USDCADgarch)
+    RateUSDCADGarch=USDCADgarch
+  }
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

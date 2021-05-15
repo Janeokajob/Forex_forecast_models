@@ -1,0 +1,186 @@
+---
+title: "ARIMA Model EUR And CAD"
+author: "Jane"
+date: "01/05/2021"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+
+
+# Forcasting Exchange Rate Using ARIMA Model for EUR And CAD
+## Reading EUR and CAD Currency into r
+
+
+
+```{r}
+library(readr)
+library(dplyr)
+EURCADARIMA<-  read.csv ("EURCAD_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateEURCAD = ("CLOSE"))
+
+  
+head(EURCADARIMA)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+EURCADARIMA$Date <- lubridate::ymd(EURCADARIMA$Date)
+head(EURCADARIMA)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(EURCADARIMA))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+EURCADARIMATS<- ts(as.vector(EURCADARIMA$Rate),  frequency = 322, start= c(2000,01,03))
+plot.ts(EURCADARIMATS)
+title("Time Series plot of EURCADTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+
+
+## Finding the component of the Time Series
+
+```{r}
+ComponentEURCAD <- decompose(EURCADARIMATS)
+plot(ComponentEURCAD)
+```
+
+## To To achieve stationarity by differencing the data – compute the differences between consecutive observations
+
+```{r}
+library("fUnitRoots")
+urkpssTest(EURCADARIMATS, type = c("tau"), lags = c("short"),use.lag = NULL, doplot = TRUE)
+EURCADStationary= diff(EURCADARIMATS, differences=1)
+plot(EURCADStationary)
+```
+
+
+## Calculating Autocorrlation function and partil autocorlation function
+
+
+```{r}
+acf(EURCADARIMATS,lag.max=34)
+pacf(EURCADARIMATS, lag.max = 34)
+```
+
+
+## Adjusting and ensuring there are no seasonality
+```{r}
+TSseasonallyadjustedEURCAD <- EURCADARIMATS- ComponentEURCAD$seasonal 
+StationaryEURCAD <- diff(TSseasonallyadjustedEURCAD, differences=1)
+plot(StationaryEURCAD)
+```
+
+
+## Calculating again for ACF and PACF after finding stationality
+
+```{r}
+acf(StationaryEURCAD, lag.max=34)
+pacf(StationaryEURCAD, lag.max=34)
+```
+
+
+# Fitting The ARIMA Model
+## ARIMA fitting (1,1,0)
+
+```{r}
+fitArima1EURCAD <- arima(EURCADARIMATS, order =  c(1,0,0), include.mean = TRUE)
+fitArima1EURCAD
+```
+
+
+##Arima Fitting (1,0,1)
+
+```{r}
+fitArima2EURCAD <- arima(EURCADARIMATS, order =  c(1,0,1), include.mean = TRUE)
+fitArima2EURCAD
+```
+
+## Arima Fitting (2,1,1)
+
+```{r}
+fitArima3EURCAD <- arima(EURCADARIMATS, order = c(2,1,1), include.mean = TRUE)
+fitArima3EURCAD
+```
+
+
+##Fitting Arima (3,1,0)
+
+```{r}
+fitArima4EURCAD <- arima(EURCADARIMATS, order = c(3,1,0), include.mean = TRUE)
+fitArima4EURCAD
+```
+
+
+##Best possible model is selected by AIC scores of the models
+
+
+
+```{r}
+library(dLagM)
+ARIMAModelSelectionEURCAD = AIC(fitArima1EURCAD,fitArima2EURCAD,fitArima3EURCAD,fitArima4EURCAD)
+sortScore(ARIMAModelSelectionEURCAD, score ="aic")
+```
+
+### Base on the above the fitArima1CanJap is selected
+
+##
+
+```{r}
+confint(fitArima2EURCAD)
+```
+
+## Runing code to obtain Box Test Rest
+
+```{r}
+acf(fitArima2EURCAD$residuals)
+library(FitAR)
+library(bestglm)
+ Box.test(resid(fitArima2EURCAD),type="Ljung",lag=20,fitdf=1)
+
+qqnorm(fitArima2EURCAD$residuals)
+qqline(fitArima2EURCAD$residuals)
+```
+
+
+## Using Auto.arima to find the best model fit
+
+```{r}
+library(forecast)
+auto.arima(EURCADARIMATS, trace=TRUE)
+```
+
+
+
+
+## forecasting using  Best model: ARIMA(0,1,0)    
+
+```{r}
+forecastarimaEURCAD<- predict(fitArima2EURCAD,n.ahead = 100)
+forecastarimaEURCAD
+par(mfrow = c(1,1))
+```
+
+
+

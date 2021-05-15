@@ -1,0 +1,182 @@
+---
+title: "DCC GARCH Model"
+author: "Jane"
+date: "19/04/2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Forecasting Using DCC GARCH Model
+
+
+
+## Reading Canadian and Japanes Currency into r
+```{r}
+library(readr)
+library(dplyr)
+CanadianJapanCurrencyDCC<- readxl::read_xlsx ("CADJPY_Candlestick_1_D_BID_01.01.2000-31.12.2020.xlsx")%>%
+ select('Gmt time', Open,Close)%>%
+  rename(Date = ('Gmt time')) 
+
+head(CanadianJapanCurrencyDCC)
+```
+
+
+
+
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+CanadianJapanCurrencyDCC$Date <- lubridate::ymd(CanadianJapanCurrencyDCC$Date)
+head(CanadianJapanCurrencyDCC)
+
+```
+
+
+##Checking for obvious errors 
+
+```{r}
+#Checking for obvious errors
+which(is.na(CanadianJapanCurrencyDCC))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+CanjapTSDCCopen<- ts(CanadianJapanCurrencyDCC$Open,    frequency = 314, start= c(2000,01,03))
+CanjapTSDCCclose <- ts(CanadianJapanCurrencyDCC$Close, frequency = 314, start = c(2000,01,03))
+CanjapTSDCC <- cbind(CanjapTSDCCclose, CanjapTSDCCopen)
+plot.ts(CanjapTSDCC)
+title("Time Series plot of CanJapTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+
+
+
+## 
+```{r}
+
+
+
+CanJapLogTranDCC<-log(CanjapTSDCC)
+
+ar(CanJapLogTranDCC)
+```
+
+
+
+
+## Differencing the time series
+
+```{r}
+DiffCanJapLogTranDCC<-diff(CanJapLogTranDCC) 
+ar(DiffCanJapLogTranDCC)
+plot(DiffCanJapLogTranDCC)
+```
+
+
+
+
+## Defining the the model
+
+
+```{r}
+library(rmgarch)  
+
+
+ugarch_spec1 <- ugarchspec(mean.model = list(armaOrder = c(0,0), include.mean = FALSE), 
+                          variance.model = list(model = "sGARCH", garchOrder = c(1,1)))
+
+ugarch_spec2 <- ugarchspec(mean.model = list(armaOrder = c(1,0), include.mean = FALSE), 
+                          variance.model = list(model = "sGARCH", garchOrder = c(1,1)))
+ugarch_spec3 <- ugarchspec(mean.model = list(armaOrder = c(2,0), include.mean = FALSE), 
+                          variance.model = list(model = "sGARCH", garchOrder = c(1,1)))
+
+ugarch_spec <- c(ugarch_spec1,ugarch_spec2,ugarch_spec3)
+
+
+# specify DCC model
+dcc_spec <- dccspec(uspec = multispec(replicate(ugarch_spec1, n = 3)),
+                    VAR = TRUE, lag = 3,
+                    model = "DCC", dccOrder = c(1,1))
+
+```
+
+
+```{r}
+library(rmgarch)  
+
+# specify i.i.d. model for the univariate time series
+ugarch_spec <- ugarchspec(mean.model = list(armaOrder = c(0,0), include.mean = FALSE), 
+                          variance.model = list(model = "sGARCH", garchOrder = c(1,1)))
+
+# specify DCC model
+dcc_spec <- dccspec(uspec = multispec(replicate(ugarch_spec, n = 2)),
+                    VAR = TRUE, lag = 3,
+                    model = "DCC", dccOrder = c(1,1))
+```
+
+
+
+
+## Next, we fit the model:
+
+fit1 = dccfit(spec1, data = Dat, fit.control = list(eval.se = TRUE), fit = multf, cluster = cl)
+fit1a = dccfit(spec1a, data = Dat, fit.control = list(eval.se = TRUE), fit = multf, cluster = cl)
+fit2 = dccfit(spec2, data = Dat, fit.control = list(eval.se = TRUE), fit = multf, cluster = cl)
+fit2a = dccfit(spec2a, data = Dat, fit.control = list(eval.se = TRUE), fit = multf, cluster = cl)
+
+
+```{r}
+
+# estimate model
+garchdcc_fit <- dccfit(dcc_spec, data = DiffCanJapLogTranDCC, solver = "nlminb")
+garchdcc_fit
+```
+
+
+```{r}
+
+
+```
+
+
+
+
+## Forecasting 
+
+
+```{r}
+forc2 = dccforecast(garchdcc_fit, n.ahead = 100, n.roll = 0)
+forc2
+```
+
+
+```{r}
+H1 = rcov(forc2)
+	
+cat("\nDCC Forecast Summary:\n")
+(forc2)
+
+cat("\nRolling and mixed Rolling Forecast DCC model Conditional Covariance check:\n")
+cat("\nFirst:\n")
+print( H1[[1]][,,1] )
+cat("\n100:\n")
+```
+
+
+
+
+
+

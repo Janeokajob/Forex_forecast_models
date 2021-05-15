@@ -1,0 +1,185 @@
+---
+title: "ARIMA Model EUR And JPY"
+author: "Jane"
+date: "29/04/2021"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+
+
+
+
+
+ # Forcasting Exchange Rate Using ARIMA Model for EUR And US Dollar
+
+## Reading EUR and EUR Currency into r
+```{r}
+library(readr)
+library(dplyr)
+EURJPYARIMA <-  read.csv ("EURJPY_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateEURJPY = ("CLOSE"))
+
+  
+head(EURJPYARIMA)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+EURJPYARIMA$Date <- lubridate::ymd(EURJPYARIMA$Date)
+head(EURJPYARIMA)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(EURJPYARIMA))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+EURJPYARIMATS<- ts(as.vector(EURJPYARIMA$Rate),  frequency = 320, start= c(2000,01,03))
+plot.ts(EURJPYARIMATS)
+title("Time Series plot of EURJPYTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+## Finding the component of the Time Series
+
+```{r}
+ComponentEURJPY <- decompose(EURJPYARIMATS)
+plot(ComponentEURJPY)
+```
+
+## To To achieve stationarity by differencing the data – compute the differences between consecutive observations
+
+```{r}
+library("fUnitRoots")
+urkpssTest(EURJPYARIMATS, type = c("tau"), lags = c("short"),use.lag = NULL, doplot = TRUE)
+EURJPYStationary= diff(EURJPYARIMATS, differences=1)
+plot(EURJPYStationary)
+```
+
+
+## Calculating Autocorrlation function and partil autocorlation function
+
+
+```{r}
+acf(EURJPYARIMATS,lag.max=34)
+pacf(EURJPYARIMATS, lag.max = 34)
+```
+
+
+## Adjusting and ensuring there are no seasonality
+```{r}
+TSseasonallyadjustedEURJPY <- EURJPYARIMATS- ComponentEURJPY$seasonal 
+StationaryEURJPY <- diff(TSseasonallyadjustedEURJPY, differences=1)
+plot(StationaryEURJPY)
+```
+
+
+## Calculating again for ACF and PACF after finding stationality
+
+```{r}
+acf(StationaryEURJPY, lag.max=34)
+pacf(StationaryEURJPY, lag.max=34)
+```
+
+
+# Fitting The ARIMA Model
+## ARIMA fitting (1,0,4)
+
+```{r}
+fitArima1EURJPY <- arima(EURJPYARIMATS, order =  c(1,0,4), include.mean = TRUE)
+fitArima1EURJPY
+```
+
+
+##Arima Fitting (1,0,3)
+
+```{r}
+fitArima2EURJPY <- arima(EURJPYARIMATS, order =  c(1,0,3), include.mean = TRUE)
+fitArima2EURJPY
+```
+
+## Arima Fitting (4,0,0)
+
+```{r}
+fitArima3EURJPY <- arima(EURJPYARIMATS, order = c(4,0,0), include.mean = TRUE)
+fitArima3EURJPY
+```
+
+
+##Fitting Arima (2,0,4)
+
+```{r}
+fitArima4EURJPY <- arima(EURJPYARIMATS, order = c(2,0,4), include.mean = TRUE)
+fitArima4EURJPY
+```
+
+
+##Best possible model is selected by AIC scores of the models
+
+
+
+```{r}
+library(dLagM)
+ARIMAModelSelectionEURJPY = AIC(fitArima1EURJPY,fitArima2EURJPY,fitArima3EURJPY,fitArima4EURJPY)
+sortScore(ARIMAModelSelectionEURJPY, score ="aic")
+```
+
+### Base on the above the fitArima1CanJap is selected
+
+##
+
+```{r}
+confint(fitArima1EURJPY)
+```
+
+## Runing code to obtain Box Test Rest
+
+```{r}
+acf(fitArima1EURJPY$residuals)
+library(FitAR)
+library(bestglm)
+ Box.test(resid(fitArima1EURJPY),type="Ljung",lag=20,fitdf=1)
+
+qqnorm(fitArima1EURJPY$residuals)
+qqline(fitArima1EURJPY$residuals)
+```
+
+
+## Using Auto.arima to find the best model fit
+
+```{r}
+library(forecast)
+auto.arima(EURJPYARIMATS, trace=TRUE)
+```
+
+
+
+
+## forecasting using  Best model: ARIMA(0,1,0)    
+
+```{r}
+forecastarimaEURJPY<- predict(fitArima1EURJPY,n.ahead = 100)
+forecastarimaEURJPY
+par(mfrow = c(1,1))
+```
+
+
+

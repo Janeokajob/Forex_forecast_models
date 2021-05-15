@@ -1,0 +1,291 @@
+---
+title: "GARCH Model EUR And GBP"
+author: "Jane"
+date: "29/04/2021"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+
+
+
+# Forcasting Exchange Rate Using GARCH Model for EUR And GBP
+## Reading EUR and GBP Currency into r
+
+
+```{r}
+library(readr)
+library(dplyr)
+EURGBPGARCH<-  read.csv ("EURGBP_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateEURGBP = ("CLOSE"))
+
+  
+head(EURGBPGARCH)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+EURGBPGARCH$Date <- lubridate::ymd(EURGBPGARCH$Date)
+head(EURGBPGARCH)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(EURGBPGARCH))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+EURGBPGARCHTS<- ts(as.vector(EURGBPGARCH$Rate),  frequency = 322, start= c(2000,01,03))
+plot.ts(EURGBPGARCHTS)
+title("Time Series plot of EURGBPTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+
+
+
+
+
+
+##Dealing with Conditional Heteroscedaticity:
+
+
+```{r}
+ 
+DifflogEURGBPGarch= diff(log(EURGBPGARCHTS))*100
+plot(DifflogEURGBPGarch)
+title("Plot of returns of EURGBP", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+##nature as almost at all lags the p-values fall below the significance levels.
+
+
+
+```{r}
+library(TSA)
+McLeod.Li.test(y= DifflogEURGBPGarch,main="McLeod-Li test statistics for Daily return series")
+```
+
+
+
+## In order to get an order of GARCH , we further transform the return series into absolute values and squared return values.
+
+
+```{r}
+
+abs = abs(DifflogEURGBPGarch)
+sqr = DifflogEURGBPGarch^2
+```
+
+
+
+
+# GARCH Model specification:
+
+```{r}
+par(mfrow=c(1,2))
+acf(abs, ci.type="ma",main=" ACF for abs. returns")
+pacf(abs, main=" PACF plot for abs.returns")
+```
+
+
+##From ACF and PACF we see many lags are significant. Hence, we plot EACF to get the candidate models
+
+```{r}
+eacf(abs) 
+```
+
+##From the squared returns ACF and PACF plot
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(sqr, ci.type="ma",main="ACF  for sqr. return")
+pacf(sqr, main="PACF for sqr. return")
+```
+
+##
+
+```{r}
+eacf(sqr) 
+```
+
+
+
+### With reference to the Dickey-Fuller Test, p-value is less than the 0.02 and we can reject the null hypothesis stating the non-stationarity. Hence , we can proceed further for model selection .
+
+
+#MODEL ESTIMATION:
+##GARCH (1,1): for GBP and USD Curruency Pair
+
+
+```{r}
+
+
+# GARCH(2,1)
+library(tseries)
+EURGBPGARCHFit.11= garch(DifflogEURGBPGarch,order=c(1,1),trace =FALSE)
+summary(EURGBPGARCHFit.11)
+```
+
+
+
+## GARCH (2,2):
+##This model can be interpreted as an overfit model of GARCH(1,1) and p values from residual tests confirms that residuals has low correlated. Thus this model is not consider to be a good fit.
+
+```{r}
+
+EURGBPGARCHFit.22 = garch(DifflogEURGBPGarch, order =c(2,2),trace =FALSE)
+summary(EURGBPGARCHFit.22)
+```
+
+
+##GARCH (3,1):
+##This model can be interpreted as an overfit model of GARCH(2,1) and GARCH (2,2). This model may not be consider to be a good fit.
+
+
+
+```{r}
+
+EURGBPGARCHFit.31 = garch(DifflogEURGBPGarch,order=c(3,1),trace =FALSE)
+summary(EURGBPGARCHFit.31)
+```
+
+
+##GARCH (3,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+# GARCH(3,2) 
+
+```{r}
+EURGBPGARCHFit.32 = garch(DifflogEURGBPGarch,order=c(3,2),trace =FALSE)
+summary(EURGBPGARCHFit.32)
+```
+
+
+## GARCH (3,3):
+## This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not consider to be a good fit.
+
+# GARCH(3,3)
+
+```{r}
+
+EURGBPGARCHFit.33 = garch(DifflogEURGBPGarch,order=c(3,3),trace =FALSE)
+summary(EURGBPGARCHFit.33)
+```
+
+
+##GARCH (4,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not considered to be a good fit.
+
+
+
+```{r}
+
+EURGBPGARCHFit.42 = garch(DifflogEURGBPGarch,order=c(4,2),trace =FALSE)
+summary(EURGBPGARCHFit.42)
+```
+  ##
+  
+```{r}
+
+EURGBPGARCHFit.41 = garch(DifflogEURGBPGarch,order=c(4,1),trace =FALSE)
+summary(EURGBPGARCHFit.41)
+```
+
+
+# Model Selection:
+##Best possible model is selected by AIC scores of the models. From the below sort function, GARCH(3,1) would be the best model for the return series. From the p-value, 3.1 also has the lowest correlation
+
+
+```{r}
+library(dLagM)
+GARCHModelSelectionEURGBP = AIC(EURGBPGARCHFit.11,EURGBPGARCHFit.22 ,EURGBPGARCHFit.31,EURGBPGARCHFit.32,EURGBPGARCHFit.33, EURGBPGARCHFit.42, EURGBPGARCHFit.41)
+sortScore(GARCHModelSelectionEURGBP, score ="aic")
+```
+
+
+# Model Fitting:
+
+```{r}
+library(rugarch)
+EURGBPmodel1.1<-ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1,1)), 
+                  mean.model = list(armaOrder = c(6,4), include.mean = TRUE), 
+                  distribution.model = "norm")
+                  
+EURGBPgarchMODEL1.1<-ugarchfit(spec=EURGBPmodel1.1,data=DifflogEURGBPGarch, out.sample = 100)
+plot(EURGBPgarchMODEL1.1,which="all")
+```
+
+##Model Diagnostics
+
+```{r}
+EURGBPgarchMODEL1.1
+```
+
+
+## Forecasting
+
+```{r}
+forcgarchEURGBP= ugarchforecast(EURGBPgarchMODEL1.1, data = DifflogEURGBPGarch, n.ahead = 100, n.roll = 10)
+print(forcgarchEURGBP)
+```
+
+
+## plotting
+
+```{r}
+plot(forcgarchEURGBP, which= "all")
+```
+
+## Forecasting the rate
+
+
+```{r}
+p.t_1 = 0.89365
+  R_t <- c(-0.0175020, 0.0238688, -0.0096144, 0.0164705, -0.0011654, 0.0137289, -0.0007232, 0.0116537, -0.0002277, 0.0098904, 0.0004323, 0.0081169, 0.0012552, 0.0063438, 0.0022094, 0.0045913, 0.0032507, 0.0028840, 0.0043354, 0.0012485, 0.0054215, -0.0002880, 0.0064697, -0.0016996, 0.0074436, -0.0029618, 0.0083107, -0.0040527, 0.0090426, -0.0049536, 0.0096160, -0.0056500, 0.0100124, -0.0061315, 0.0102191, -0.0063924, 0.0102285, -0.0064322, 0.0100390 , -0.0062551, 0.0096543,  -0.0058704,  0.0090835 , -0.0052920,  0.0083405,  -0.0045383, 0.0074438, -0.0036315, 0.0064158 , -0.0025972, 0.0052821, -0.0014637, 0.0040710, -0.0002614, 0.0028126, 0.0009780, 0.0015380, 0.0022224, 0.0002787 ,  0.0034401, -0.0009348, 0.0046002, -0.0020729, 0.0056739, -0.0031084 , 0.0066347, -0.0040166, 0.0074593, -0.0047765 , 0.0081281, -0.0053708, 0.0086257, -0.0057864,  0.0089411, -0.0060148, 0.0090679, -0.0060524, 0.0090048, -0.0059001 ,
+0.0087549, -0.0055638, 0.0083263, -0.0050538, 0.0077313, -0.0043847, 0.0069864, -0.0035747, 0.0061115, -0.0026455, 
+0.0051298, -0.0016218,  0.0040668, -0.0005299, 0.0029499, 0.0006020, 0.0018074, 0.0017452, 0.0006683, 0.0028710 , 
+-0.0004391
+
+
+
+
+
+
+)
+  p_t= 0
+  for (i in 1:100){
+    p_t =  p.t_1  *((2.71828)^(R_t[i]/100))
+   print(p_t)
+    p.t_1=p_t
+  }
+  
+```
+
+
+
+
+
+
+
+
+

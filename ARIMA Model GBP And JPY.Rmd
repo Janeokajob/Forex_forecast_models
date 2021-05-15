@@ -1,0 +1,190 @@
+---
+title: "ARIMA Model GBP And JPY"
+author: "Jane"
+date: "28/04/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+
+
+# Forcasting Exchange Rate Using ARIMA Model for Bristish Pound And Japanese Yen
+
+## Reading GBP and JPY Currency into r
+```{r}
+library(readr)
+library(dplyr)
+GBPJPYARIMA <-  read.csv ("GBPJPY_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateGBPJPY = ("CLOSE"))
+
+  
+head(GBPJPYARIMA)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+GBPJPYARIMA$Date <- lubridate::ymd(GBPJPYARIMA$Date)
+head(GBPJPYARIMA)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(GBPJPYARIMA))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+GBPJPYARIMATS<- ts(as.vector(GBPJPYARIMA$Rate),  frequency = 320, start= c(2000,01,03))
+plot.ts(GBPJPYARIMATS)
+title("Time Series plot of GBPJPYTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+## Finding the component of the Time Series
+
+```{r}
+ComponentGBPJPY <- decompose(GBPJPYARIMATS)
+plot(ComponentGBPJPY)
+```
+
+## To To achieve stationarity by differencing the data – compute the differences between consecutive observations
+
+```{r}
+library("fUnitRoots")
+urkpssTest(GBPJPYARIMATS, type = c("tau"), lags = c("short"),use.lag = NULL, doplot = TRUE)
+GBPJPYStationary= diff(GBPJPYARIMATS, differences=1)
+plot(GBPJPYStationary)
+```
+
+
+## Calculating Autocorrlation function and partil autocorlation function
+
+
+```{r}
+acf(GBPJPYARIMATS,lag.max=34)
+pacf(GBPJPYARIMATS, lag.max = 34)
+```
+
+
+## Adjusting and ensuring there are no seasonality
+```{r}
+TSseasonallyadjustedGBPJPY <- GBPJPYARIMATS- ComponentGBPJPY$seasonal 
+StationaryGBPJPY<- diff(TSseasonallyadjustedGBPJPY, differences=1)
+plot(StationaryGBPJPY)
+```
+
+
+## Calculating again for ACF and PACF after finding stationality
+
+```{r}
+acf(StationaryGBPJPY, lag.max=34)
+pacf(StationaryGBPJPY, lag.max=34)
+```
+
+
+# Fitting The ARIMA Model
+## ARIMA fitting (1,1,0)
+
+```{r}
+fitArima1GBPJPY <- arima(GBPJPYARIMATS, order =  c(1,1,0), include.mean = TRUE)
+fitArima1GBPJPY
+```
+
+
+##Arima Fitting (4,0,1)
+
+```{r}
+fitArima2GBPJPY <- arima(GBPJPYARIMATS, order =  c(4,0,1), include.mean = TRUE)
+fitArima2GBPJPY
+```
+
+## Arima Fitting (2,1,1)
+
+```{r}
+fitArima3GBPJPY <- arima(GBPJPYARIMATS, order = c(2,1,1), include.mean = TRUE)
+fitArima3GBPJPY
+```
+
+
+##Fitting Arima (2,1,0)
+
+```{r}
+fitArima4GBPJPY <- arima(GBPJPYARIMATS, order = c(2,1,0), include.mean = TRUE)
+fitArima4GBPJPY
+```
+
+
+##Best possible model is selected by AIC scores of the models
+
+
+
+```{r}
+library(dLagM)
+ARIMAModelSelectionGBPJPY = AIC(fitArima1GBPJPY,fitArima2GBPJPY,fitArima3GBPJPY,fitArima4GBPJPY)
+sortScore(ARIMAModelSelectionGBPJPY, score ="aic")
+```
+
+### Base on the above the fitArima1CanJap is selected
+
+##
+
+```{r}
+confint(fitArima2GBPJPY)
+```
+
+## Runing code to obtain Box Test Rest
+
+```{r}
+acf(fitArima2GBPJPY$residuals)
+library(FitAR)
+library(bestglm)
+ Box.test(resid(fitArima2GBPJPY),type="Ljung",lag=20,fitdf=1)
+
+qqnorm(fitArima2GBPJPY$residuals)
+qqline(fitArima2GBPJPY$residuals)
+```
+
+
+## Using Auto.arima to find the best model fit
+
+```{r}
+library(forecast)
+auto.arima(GBPJPYARIMATS, trace=TRUE)
+```
+
+
+
+
+## forecasting using  Best model: ARIMA(1,1,0)    
+
+```{r}
+forecastarimaGBPJPY<- predict(fitArima2GBPJPY,n.ahead = 100)
+forecastarimaGBPJPY
+par(mfrow = c(1,1))
+```
+
+
+
+
+
+
+

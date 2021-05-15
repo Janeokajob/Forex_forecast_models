@@ -1,0 +1,181 @@
+---
+title: "ARIMA Model GBP And CAD"
+author: "Jane"
+date: "28/04/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+# Forcasting Exchange Rate Using ARIMA Model for Bristish Pound And canadian Dollar
+
+## Reading GBP and CAD Currency into r
+```{r}
+library(readr)
+library(dplyr)
+GBPCADARIMA <-  read.csv ("GBPCAD_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateGBPCAD = ("CLOSE"))
+
+  
+head(GBPCADARIMA)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+GBPCADARIMA$Date <- lubridate::ymd(GBPCADARIMA$Date)
+head(GBPCADARIMA)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(GBPCADARIMA))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+GBPCADARIMATS<- ts(as.vector(GBPCADARIMA$Rate),  frequency = 313, start= c(2000,01,03))
+plot.ts(GBPCADARIMATS)
+title("Time Series plot of GBPCADTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+## Finding the component of the Time Series
+
+```{r}
+ComponentGBPCAD <- decompose(GBPCADARIMATS)
+plot(ComponentGBPCAD)
+```
+
+## To To achieve stationarity by differencing the data – compute the differences between consecutive observations
+
+```{r}
+library("fUnitRoots")
+urkpssTest(GBPCADARIMATS, type = c("tau"), lags = c("short"),use.lag = NULL, doplot = TRUE)
+GBPCADStationary= diff(GBPCADARIMATS, differences=1)
+plot(GBPCADStationary)
+```
+
+
+## Calculating Autocorrlation function and partil autocorlation function
+
+
+```{r}
+acf(GBPCADARIMATS,lag.max=34)
+pacf(GBPCADARIMATS, lag.max = 34)
+```
+
+
+## Adjusting and ensuring there are no seasonality
+```{r}
+TSseasonallyadjustedGBPCAD <- GBPCADARIMATS- ComponentGBPCAD$seasonal 
+StationaryGBPCAD<- diff(TSseasonallyadjustedGBPCAD, differences=1)
+plot(StationaryGBPCAD)
+```
+
+
+## Calculating again for ACF and PACF after finding stationality
+
+```{r}
+acf(StationaryGBPCAD, lag.max=34)
+pacf(StationaryGBPCAD, lag.max=34)
+```
+
+
+# Fitting The ARIMA Model
+## ARIMA fitting (3,0,3)
+
+```{r}
+fitArima1GBPCAD <- arima(GBPCADARIMATS, order =  c(3,0,3), include.mean = TRUE)
+fitArima1GBPCAD
+```
+
+
+##Arima Fitting (4,0,0)
+
+```{r}
+fitArima2GBPCAD <- arima(GBPCADARIMATS, order =  c(4,0,0), include.mean = TRUE)
+fitArima2GBPCAD
+```
+
+## Arima Fitting (4,0,2)
+
+```{r}
+fitArima3GBPCAD <- arima(GBPCADARIMATS, order = c(4,0,2), include.mean = TRUE)
+fitArima3GBPCAD
+```
+
+
+##Fitting Arima (0,1,3)
+
+```{r}
+fitArima4GBPCAD <- arima(GBPCADARIMATS, order = c(3,1,0), include.mean = TRUE)
+fitArima4GBPCAD
+```
+
+
+##Best possible model is selected by AIC scores of the models
+
+
+
+```{r}
+library(dLagM)
+ARIMAModelSelectionGBPCAD = AIC(fitArima1GBPCAD,fitArima2GBPCAD,fitArima3GBPCAD,fitArima4GBPCAD)
+sortScore(ARIMAModelSelectionGBPCAD, score ="aic")
+```
+
+### Base on the above the fitArima1CanJap is selected
+
+##
+
+```{r}
+confint(fitArima3GBPCAD)
+```
+
+## Runing code to obtain Box Test Rest
+
+```{r}
+acf(fitArima3GBPCAD$residuals)
+library(FitAR)
+library(bestglm)
+ Box.test(resid(fitArima3GBPCAD),type="Ljung",lag=20,fitdf=1)
+
+qqnorm(fitArima3GBPCAD$residuals)
+qqline(fitArima3GBPCAD$residuals)
+```
+
+
+## Using Auto.arima to find the best model fit
+
+```{r}
+library(forecast)
+auto.arima(GBPCADARIMATS, trace=TRUE)
+```
+
+
+
+
+## forecasting using  Best model: ARIMA(1,1,0)    
+
+```{r}
+forecastarimaGBPCAD<- predict(fitArima3GBPCAD,n.ahead = 100)
+forecastarimaGBPCAD
+par(mfrow = c(1,1))
+```
+
+
+

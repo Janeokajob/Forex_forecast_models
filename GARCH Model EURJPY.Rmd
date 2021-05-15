@@ -1,0 +1,286 @@
+---
+title: "GARCH Model EUR And JPY"
+author: "Jane"
+date: "29/04/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+
+# Forcasting Exchange Rate Using GARCH Model for EUR And JPY
+## Reading EUR and JPY Currency into r
+
+
+```{r}
+library(readr)
+library(dplyr)
+EURJPYGARCH<-  read.csv ("EURJPY_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateEURJPY = ("CLOSE"))
+
+  
+head(EURJPYGARCH)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+EURJPYGARCH$Date <- lubridate::ymd(EURJPYGARCH$Date)
+head(EURJPYGARCH)
+
+```
+
+
+
+##Checking for obvious errors or missingg value
+```{r}
+#Checking for obvious errors
+which(is.na(EURJPYGARCH))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+EURJPYGARCHTS<- ts(as.vector(EURJPYGARCH$Rate),  frequency = 322, start= c(2000,01,03))
+plot.ts(EURJPYGARCHTS)
+title("Time Series plot of EURJPYTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+
+
+
+
+
+
+##Dealing with Conditional Heteroscedaticity:
+
+
+```{r}
+ 
+DifflogEURJPYGarch= diff(log(EURJPYGARCHTS))*100
+plot(DifflogEURJPYGarch)
+title("Plot of returns of EURJPY", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+##nature as almost at all lags the p-values fall below the significance levels.
+
+
+
+```{r}
+library(TSA)
+McLeod.Li.test(y= DifflogEURJPYGarch,main="McLeod-Li test statistics for Daily return series")
+```
+
+
+
+## In order to get an order of GARCH , we further transform the return series into absolute values and squared return values.
+
+
+```{r}
+
+abs = abs(DifflogEURJPYGarch)
+sqr = DifflogEURJPYGarch^2
+```
+
+
+
+
+# GARCH Model specification:
+
+```{r}
+par(mfrow=c(1,2))
+acf(abs, ci.type="ma",main=" ACF for abs. returns")
+pacf(abs, main=" PACF plot for abs.returns")
+```
+
+
+##From ACF and PACF we see many lags are significant. Hence, we plot EACF to get the candidate models
+
+```{r}
+eacf(abs) 
+```
+
+##From the squared returns ACF and PACF plot, it is not that clear to derive the order of p and q. Hence, I approach EACF and the order of ARMA are ARMA (2,3), ARMA (3,3), ARMA (2,4). Thus, GARCH candidate models would be GARCH (3,2) GARCH (3,3) GARCH (4,2)
+
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(sqr, ci.type="ma",main="ACF  for sqr. return")
+pacf(sqr, main="PACF for sqr. return")
+```
+
+##
+
+```{r}
+eacf(sqr) 
+```
+
+
+
+### With reference to the Dickey-Fuller Test, p-value is less than the 0.02 and we can reject the null hypothesis stating the non-stationarity. Hence , we can proceed further for model selection .
+
+
+#MODEL ESTIMATION:
+##GARCH (2,1): for GBP and USD Curruency Pair
+
+
+```{r}
+
+
+# GARCH(2,1)
+library(tseries)
+EURJPYGARCHFit.21 = garch(DifflogEURJPYGarch,order=c(2,1),trace =FALSE)
+summary(EURJPYGARCHFit.21)
+```
+
+
+
+## GARCH (2,2):
+##This model can be interpreted as an overfit model of GARCH(2,1) and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+```{r}
+
+EURJPYGARCHFit.22 = garch(DifflogEURJPYGarch, order =c(2,2),trace =FALSE)
+summary(EURJPYGARCHFit.22)
+```
+
+
+##GARCH (3,1):
+##This model can be interpreted as an overfit model of GARCH(2,1) and GARCH (2,2). This model may not be consider to be a good fit.
+
+
+
+```{r}
+
+EURJPYGARCHFit.31 = garch(DifflogEURJPYGarch,order=c(3,1),trace =FALSE)
+summary(EURJPYGARCHFit.31)
+```
+
+
+##GARCH (3,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+# GARCH(3,2) 
+
+```{r}
+EURJPYGARCHFit.32 = garch(DifflogEURJPYGarch,order=c(3,2),trace =FALSE)
+summary(EURJPYGARCHFit.32)
+```
+
+
+## GARCH (3,3):
+This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not consider to be a good fit.
+
+# GARCH(3,3)
+
+```{r}
+
+EURJPYGARCHFit.33 = garch(DifflogEURJPYGarch,order=c(3,3),trace =FALSE)
+summary(EURJPYGARCHFit.33)
+```
+
+
+##GARCH (4,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not considered to be a good fit.
+
+
+
+```{r}
+
+EURJPYGARCHFit.42 = garch(DifflogEURJPYGarch,order=c(4,2),trace =FALSE)
+summary(EURJPYGARCHFit.42)
+```
+  ##
+  
+```{r}
+
+EURJPYGARCHFit.41 = garch(DifflogEURJPYGarch,order=c(4,1),trace =FALSE)
+summary(EURJPYGARCHFit.41)
+```
+
+
+# Model Selection:
+##Best possible model is selected by AIC scores of the models. From the below sort function, GARCH(3,1) would be the best model for the return series. From the p-value, 3.1 also has the lowest correlation
+
+
+```{r}
+library(dLagM)
+GARCHModelSelectionEURJPY = AIC(EURJPYGARCHFit.21,EURJPYGARCHFit.22 ,EURJPYGARCHFit.31,EURJPYGARCHFit.32,EURJPYGARCHFit.33, EURJPYGARCHFit.42, EURJPYGARCHFit.41)
+sortScore(GARCHModelSelectionEURJPY, score ="aic")
+```
+
+
+# Model Fitting:
+
+```{r}
+library(rugarch)
+EURJPYmodel1.1<-ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1,1)), 
+                  mean.model = list(armaOrder = c(1,6), include.mean = TRUE), 
+                  distribution.model = "norm")
+                  
+EURJPYgarchMODEL1.1<-ugarchfit(spec=EURJPYmodel1.1,data=DifflogEURJPYGarch, out.sample = 100)
+plot(EURJPYgarchMODEL1.1,which="all")
+```
+
+##Model Diagnostics
+
+```{r}
+EURJPYgarchMODEL1.1
+```
+
+
+## Forecasting
+
+```{r}
+forcgarchEURJPY= ugarchforecast(EURJPYgarchMODEL1.1, data = DiffEURJPYLogTran, n.ahead = 100, n.roll =10)
+print(forcgarchEURJPY)
+```
+
+
+## plotting
+
+```{r}
+plot(forcgarchEURJPY, which= "all")
+```
+
+## Forecasting the rate
+
+
+```{r}
+p.t_1 = 126.121
+  R_t <- c(  0.011383, -0.001507, 0.003220, 0.006640, 0.006263, 0.006325, 0.006559, 0.006778, 0.006982, 0.007172, 0.007349, 0.007515, 0.007669, 0.007813, 0.007947, 0.008072, 0.008188, 0.008297, 0.008399, 0.008493, 0.008581, 
+0.008664, 0.008740, 0.008812, 0.008879, 0.008941, 0.008999, 0.009053, 0.009104, 0.009151, 0.009194, 0.009235, 0.009274 , 0.009309, 0.009342, 0.009373, 0.009402, 0.009429, 0.009454, 0.009478, 0.009499, 0.009520, 0.009539, 0.009556, 0.009573, 0.009588, 0.009603, 0.009616, 0.009629, 0.009640, 0.009651, 0.009661, 0.009671, 0.009679, 0.009688, 0.009695 , 0.009702, 0.009709, 0.009715, 0.009721, 0.009727, 0.009732, 0.009736, 0.009741, 0.009745, 0.009749, 0.009752, 
+0.009755, 0.009759, 0.009761, 0.009764, 0.009767, 0.009769, 0.009771, 0.009773, 0.009775, 0.009777, 0.009778, 0.009780 , 0.009781, 0.009783, 0.009784, 0.009785, 0.009786, 0.009787, 0.009788, 0.009789, 0.009790, 0.009791, 0.009791, 0.009792, 0.009793, 0.009793, 0.009794, 0.009794, 0.009795, 0.009795, 0.009796, 0.009796, 0.009796
+
+
+)
+  p_t= 0
+  for (i in 1:100){
+    p_t =  p.t_1  *((2.71828)^(R_t[i]/100))
+   print(p_t)
+    p.t_1=p_t
+  }
+  
+```
+
+
+
+
+
+
+
+
+

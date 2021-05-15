@@ -1,0 +1,371 @@
+---
+title: "GARCH Model USJapan"
+author: "Jane"
+date: "27/04/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Forcasting Exchange Rate Using GARCH Model for US Dollar and Japenese Yen
+
+## Reading Canadian and Japanes Currency into r
+```{r}
+library(readr)
+library(dplyr)
+USJapCurrencyGARCH <-  read.csv ("USDJPY_Candlestick_1_D_BID_01.01.2000-31.12.2020.csv")%>%
+  select('GMT.TIME', CLOSE)%>%
+  rename(Date = ('GMT.TIME'), RateUSJapan = ("CLOSE"))
+
+  
+head(USJapCurrencyGARCH)
+```
+
+## Conversion of Gmt time to date format
+```{r}
+library(dplyr)
+library(lubridate)
+
+USJapCurrencyGARCH$Date <- lubridate::ymd(USJapCurrencyGARCH$Date)
+head(USJapCurrencyGARCH)
+
+```
+
+
+
+##Checking for obvious errors
+```{r}
+#Checking for obvious errors
+which(is.na(USJapCurrencyGARCH))
+
+```
+
+##Converting the data set into time series object
+
+```{r}
+#Converting the data set into time series object
+USJapGARCHTS<- ts(as.vector(USJapCurrencyGARCH$Rate),  frequency = 314, start= c(2000,01,03))
+plot.ts(USJapGARCHTS)
+title("Time Series plot of USJapTimeseries ", sub = "(2000-2020)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+
+## Automatic Colleration and Partial Automatic Correlation
+##The ACF plot clearly states the high correlation among successive points. It also shows a strong evidence of an existence of a trend as expected from the time series plot. The PACF plot shows one significant correlation on the plot. Unit root test proves the nature of non-stationarity of the series.
+
+
+```{r}
+
+par(mfrow=c(1,2))
+acf(USJapGARCHTS, main=" ACF ")
+pacf(USJapGARCHTS, main=" PACF ")
+```
+
+
+
+
+## Differening the series to ensure stationality
+
+```{r}
+ar(diff(USJapGARCHTS))
+```
+
+
+
+##Augmented Dickey-Fuller test
+##The Augmented Dickey-Fuller test allows for higher-order autoregressive processes 
+
+```{r}
+library(tseries)
+adf.test(USJapGARCHTS, alternative = "stationary", k = 0)
+```
+
+##Ensuring the stationarity of the series:
+##Transformation:Natural Logarithmic transformation is one of the best approach to look for stationarity of the sereis.
+
+
+```{r}
+
+
+USJapLogTranGARCH<-log(USJapGARCHTS)
+
+ar(USJapLogTranGARCH)
+```
+
+
+## Augmented Dickey-Fuller Test for log Tranformation
+
+```{r}
+adf.test(USJapLogTranGARCH, alternative = "stationary", k = 0)
+```
+
+
+## ACF and PACF for log transformation
+## The ACF and PACF plot are similar to the original series and we can still suspect the non-stationarity of the series and this is also supported by Unit root test.
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(USJapLogTranGARCH, ci.type='ma', main=" ACF of transformed data")
+
+pacf(USJapLogTranGARCH,  main="PACF of transformed data")
+
+```
+
+
+##Differencing as my next approach to achieve the stationarity of the series.
+
+
+```{r}
+DiffUSJapLogTranGARCH<-diff(USJapLogTranGARCH) 
+ar(DiffUSJapLogTranGARCH)
+```
+
+
+## Runing ACF and PACF for the log transform Difference
+
+##At the first difference of the transformed series, we can observe the plots of ACF and PACF shows a bit difference to the previous steep decreasing pattern. As we can ensure the assumption of stationarity with Unit-Root test.
+
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(DiffUSJapLogTranGARCH, ci.type='ma', main="ACF of 1st differnce")
+pacf(DiffUSJapLogTranGARCH, main="PACF of 1st differnce")
+```
+
+
+## Augmented Dickey-Fuller Test for log Tranformation Difference
+
+```{r}
+adf.test(DiffUSJapLogTranGARCH, alternative = "stationary", k = 0)
+```
+
+##Dealing with Conditional Heteroscedaticity:
+##To deal with volatile nature of bitcoin series, I have transformed the series as returns of the bitcoin.
+
+
+
+```{r}
+ 
+DifflogUSJapGarch= diff(log(USJapGARCHTS))*100
+plot(DifflogUSJapGarch)
+title("Plot of returns of USJapan", sub = "(2013-2018)",
+      cex.main = 1.5,   font.main= 4, col.main= "blue",
+      cex.sub = 0.75, font.sub = 3, col.sub = "red")
+```
+
+##nature as almost at all lags the p-values fall below the significance levels.
+
+
+```{r}
+library(TSA)
+McLeod.Li.test(y= DifflogUSJapGarch,main="McLeod-Li test statistics for Daily return series")
+```
+
+
+
+## In order to get an order of GARCH , we further transform the return series into absolute values and squared return values.
+
+
+```{r}
+
+abs = abs(DifflogUSJapGarch)
+sqr = DifflogUSJapGarch^2
+```
+
+
+
+
+# GARCH Model specification:
+
+```{r}
+par(mfrow=c(1,2))
+acf(abs, ci.type="ma",main=" ACF for abs. returns")
+pacf(abs, main=" PACF plot for abs.returns")
+```
+
+
+##From ACF and PACF we see many lags are significant. Hence, we plot EACF to get the candidate models
+
+```{r}
+eacf(abs) 
+```
+
+##From the squared returns ACF and PACF plot, it is not that clear to derive the order of p and q. Hence, I approach EACF and the order of ARMA are ARMA (2,3), ARMA (3,3), ARMA (2,4). Thus, GARCH candidate models would be GARCH (3,2) GARCH (3,3) GARCH (4,2)
+
+```{r}
+
+
+par(mfrow=c(1,2))
+acf(sqr, ci.type="ma",main="ACF  for sqr. return")
+pacf(sqr, main="PACF for sqr. return")
+```
+
+##
+
+```{r}
+eacf(sqr) 
+```
+
+
+
+### With reference to the Dickey-Fuller Test, p-value is less than the 0.02 and we can reject the null hypothesis stating the non-stationarity. Hence , we can proceed further for model selection .
+
+
+#MODEL ESTIMATION:
+##GARCH (2,1): for US and Japanese Curruency Pair
+
+
+```{r}
+
+
+# GARCH(2,1)
+USJapGARCHFit.21 = garch(DifflogUSJapGarch,order=c(2,1),trace =FALSE)
+summary(USJapGARCHFit.21)
+```
+
+
+
+## GARCH (2,2):
+##This model can be interpreted as an overfit model of GARCH(2,1) and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+```{r}
+
+
+USJapGARCHFit.22 = garch(DifflogUSJapGarch, order =c(2,2),trace =FALSE)
+summary(USJapGARCHFit.22)
+```
+
+
+##GARCH (3,1):
+##This model can be interpreted as an overfit model of GARCH(2,1) and GARCH (2,2). This model may not be consider to be a good fit.
+
+
+
+```{r}
+
+USJapGARCHFit.31 = garch(DifflogUSJapGarch,order=c(3,1),trace =FALSE)
+summary(USJapGARCHFit.31)
+```
+
+
+##GARCH (3,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus this model is not consider to be a good fit.
+
+# GARCH(3,2) 
+
+```{r}
+USJapGARCHFit.32 = garch(DifflogUSJapGarch,order=c(3,2),trace =FALSE)
+summary(USJapGARCHFit.32)
+```
+
+
+## GARCH (3,3):
+This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not consider to be a good fit.
+
+# GARCH(3,3)
+
+```{r}
+
+USJapGARCHFit.33 = garch(DifflogUSJapGarch,order=c(3,3),trace =FALSE)
+summary(USJapGARCHFit.33)
+```
+
+
+##GARCH (4,2):
+##This model can be interpreted as an overfitting model and p values from residual tests confirms that residuals are highly correlated. Thus, this model is not considered to be a good fit.
+
+
+
+```{r}
+
+USJapGARCHFit.42 = garch(DifflogUSJapGarch,order=c(4,2),trace =FALSE)
+summary(USJapGARCHFit.42)
+```
+
+
+
+# Model Selection:
+##Best possible model is selected by AIC scores of the models. From the below sort function, GARCH(3,1) would be the best model for the return series. From the p-value, 3.1 also has the lowest correlation
+
+
+```{r}
+library(dLagM)
+GARCHModelSelectionUSJap = AIC(USJapGARCHFit.21,USJapGARCHFit.22 ,USJapGARCHFit.31,USJapGARCHFit.32,USJapGARCHFit.33, USJapGARCHFit.42)
+sortScore(GARCHModelSelectionUSJap, score ="aic")
+```
+
+
+# Model Fitting:
+
+```{r}
+library(rugarch)
+USJapmodel3.1<-ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(3, 1)), 
+                  mean.model = list(armaOrder = c(1, 1), include.mean = TRUE), 
+                  distribution.model = "norm")
+                  
+USJapgarchMODEL3.1<-ugarchfit(spec=USJapmodel3.1,data=DifflogUSJapGarch, out.sample = 100)
+plot(USJapgarchMODEL3.1,which="all")
+```
+
+##Model Diagnostics
+
+```{r}
+USJapgarchMODEL3.1
+```
+
+
+## Forecasting
+
+```{r}
+forcgarchUSJap = ugarchforecast(USJapgarchMODEL3.1, data = DiffUSJapLogTran, n.ahead = 100, n.roll =10)
+print(forcgarchUSJap)
+```
+
+
+## plotting
+
+```{r}
+plot(forcgarchUSJap, which= "all")
+```
+
+## Forecasting the rate
+
+
+```{r}
+RateUSJapGarch = 81.074
+  RUSJGARCH <-c(0.003425, 0.003831, 0.004176, 0.004470,0.004720, 0.004934, 0.005115, 0.005270, 0.005402, 0.005514, 0.005610, 0.005691, 0.005761, 0.005820, 0.005870, 0.005913, 0.005949, 0.005980, 0.006007, 0.006029, 0.006048, 0.006065, 0.006079, 0.006091, 0.006101, 0.006109, 0.006117, 0.006123, 0.006128, 0.006133, 0.006137, 0.006140, 0.006143, 0.006145, 0.006147, 0.006149, 0.006150, 0.006152, 0.006153, 0.006154, 0.006154, 0.006155, 0.006156, 0.006156, 0.006156, 0.006157, 0.006157, 0.006157, 0.006158, 0.006158, 0.006158, 0.006158, 0.006158, 0.006158, 0.006158, 0.006158, 0.006158, 0.006158, 0.006158, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159,
+0.006159, 0.006159,0.006159,  0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159,
+0.006159, 0.006159, 0.006159, 0.006159, 0.006159,  0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159, 0.006159 
+
+)
+  USJAPgarch= 0 
+  for (i in 1:100){
+    USJAPgarch =  RateUSJapGarch *((2.71828)^(RUSJGARCH[i]/100))
+    print(USJAPgarch)
+    RateUSJapGarch=USJAPgarch
+  }
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
